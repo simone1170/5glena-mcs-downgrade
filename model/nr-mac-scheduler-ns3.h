@@ -996,6 +996,13 @@ class NrMacSchedulerNs3 : public NrMacScheduler
 
     bool m_enableHarqReTx{true}; //!< Flag to enable or disable HARQ ReTx (attribute)
 
+    // Outer-loop link adaptation (OLLA), DL only. Ported for MCS-downgrade study.
+    bool m_useOlla{false};         //!< Enable DL OLLA (attribute)
+    double m_ollaStep{0.1};        //!< OLLA step in MCS units; NACK decrement (attribute)
+    double m_ollaTargetBler{0.1};  //!< OLLA target BLER (attribute)
+    double m_ollaMaxOffset{4.0};   //!< OLLA max positive offset, MCS units (attribute)
+    double m_ollaMinOffset{-20.0}; //!< OLLA max negative offset, MCS units (attribute)
+
     TracedCallback<uint16_t, uint16_t, const std::shared_ptr<NrMacSchedulerUeInfo>&>
         m_csiFeedbackReceived; //!< Traced callback to access CSI feedback
 };

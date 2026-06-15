@@ -137,6 +137,21 @@ NrMacSchedulerCQIManagement::DlCqiReported(const DlCqiInfo& info,
     ueInfo->m_dlMcs =
         std::min(static_cast<uint8_t>(GetAmcDl()->GetMcsFromCqi(ueInfo->m_dlCqi.m_wbCqi)),
                  static_cast<uint8_t>(maxDlMcs));
+    // OLLA: apply per-UE offset (0 when disabled) on top of the CQI-derived MCS.
+    // Note: maxDlMcs is int8_t and may be a negative "no limit" sentinel, so it
+    // must be interpreted as uint8_t for the upper clamp (matches the line above).
+    if (ueInfo->m_dlOllaOffset != 0.0)
+    {
+        double off = ueInfo->m_dlOllaOffset;
+        // Upper bound: both the (uint8-interpreted) scheduler limit and the AMC's
+        // highest valid MCS index, so a positive offset cannot produce an invalid MCS.
+        int upper = std::min(static_cast<int>(static_cast<uint8_t>(maxDlMcs)),
+                             static_cast<int>(GetAmcDl()->GetMaxMcs()));
+        int adj = static_cast<int>(ueInfo->m_dlMcs) +
+                  static_cast<int>(off >= 0 ? off + 0.5 : off - 0.5);
+        adj = std::max(0, std::min(adj, upper));
+        ueInfo->m_dlMcs = static_cast<uint8_t>(adj);
+    }
 
     ueInfo->m_dlCqi.m_sbCqi = info.m_sbCqis;
     ueInfo->m_dlSbMcsInfo.clear();

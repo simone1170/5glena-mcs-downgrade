@@ -270,7 +270,8 @@ class NrMacSchedulerUeInfo
     std::vector<uint8_t> m_dlSym;  //!< Corresponding symbol of m_dlRBG in this slot
     std::vector<uint8_t> m_ulSym;  //!< Corresponding symbol of m_ulRBG in this slot
 
-    uint8_t m_dlMcs{0}; //!< DL MCS
+    uint8_t m_dlMcs{0};         //!< DL MCS
+    double m_dlOllaOffset{0.0}; //!< OLLA offset (MCS units) added to CQI-derived DL MCS
     std::optional<uint8_t>
         m_fhMaxMcsAssignable; //!< Maximum DL MCS assignable due to FH limitations
     uint8_t m_ulMcs{0};       //!< UL MCS

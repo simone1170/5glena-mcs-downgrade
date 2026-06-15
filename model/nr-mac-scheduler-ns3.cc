@@ -18,6 +18,7 @@
 #include "resource-assignment-matrix.h"
 
 #include "ns3/boolean.h"
+#include "ns3/double.h"
 #include "ns3/enum.h"
 #include "ns3/integer.h"
 #include "ns3/log.h"
@@ -144,6 +145,31 @@ NrMacSchedulerNs3::GetTypeId()
                           MakeUintegerAccessor(&NrMacSchedulerNs3::SetStartMcsUl,
                                                &NrMacSchedulerNs3::GetStartMcsUl),
                           MakeUintegerChecker<uint8_t>())
+            .AddAttribute("UseOlla",
+                          "Enable outer-loop link adaptation (OLLA) for DL",
+                          BooleanValue(false),
+                          MakeBooleanAccessor(&NrMacSchedulerNs3::m_useOlla),
+                          MakeBooleanChecker())
+            .AddAttribute("OllaStep",
+                          "OLLA step size in MCS units (per-NACK decrement)",
+                          DoubleValue(0.1),
+                          MakeDoubleAccessor(&NrMacSchedulerNs3::m_ollaStep),
+                          MakeDoubleChecker<double>(0.0))
+            .AddAttribute("OllaTargetBler",
+                          "OLLA target block error rate",
+                          DoubleValue(0.1),
+                          MakeDoubleAccessor(&NrMacSchedulerNs3::m_ollaTargetBler),
+                          MakeDoubleChecker<double>(0.0, 0.5))
+            .AddAttribute("OllaMaxOffset",
+                          "OLLA maximum positive offset (MCS units)",
+                          DoubleValue(4.0),
+                          MakeDoubleAccessor(&NrMacSchedulerNs3::m_ollaMaxOffset),
+                          MakeDoubleChecker<double>())
+            .AddAttribute("OllaMinOffset",
+                          "OLLA maximum negative offset (MCS units)",
+                          DoubleValue(-20.0),
+                          MakeDoubleAccessor(&NrMacSchedulerNs3::m_ollaMinOffset),
+                          MakeDoubleChecker<double>())
             .AddAttribute("DlCtrlSymbols",
                           "Number of symbols allocated for DL CTRL",
                           UintegerValue(1),
@@ -2460,6 +2486,31 @@ NrMacSchedulerNs3::DoSchedDlTriggerReq(
     for (const auto& itUe : m_ueMap)
     {
         ResetExpiredHARQ(itUe.second->m_rnti, &itUe.second->m_dlHarq);
+    }
+
+    // OLLA (DL): update per-UE offset from FRESHLY received HARQ feedback only.
+    // We iterate params.m_dlHarqInfoList (each TB outcome appears here exactly once)
+    // rather than the merged feedback, which re-feeds NACKs pending retransmission.
+    if (m_useOlla)
+    {
+        const double ollaAckUp = m_ollaStep * m_ollaTargetBler / (1.0 - m_ollaTargetBler);
+        for (const auto& fb : params.m_dlHarqInfoList)
+        {
+            auto ueIt = m_ueMap.find(fb.m_rnti);
+            if (ueIt == m_ueMap.end())
+            {
+                continue;
+            }
+            double& off = ueIt->second->m_dlOllaOffset;
+            if (fb.IsReceivedOk())
+            {
+                off = std::min(m_ollaMaxOffset, off + ollaAckUp);
+            }
+            else
+            {
+                off = std::max(m_ollaMinOffset, off - m_ollaStep);
+            }
+        }
     }
 
     // Merge not-retransmitted and received feedback
