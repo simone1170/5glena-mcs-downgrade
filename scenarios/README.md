@@ -150,3 +150,43 @@ entirely on the jammer->victim path):
 Figure: `figures/channel-regime-5glena.png`. Practical reading: against a fixed industrial
 victim with a line-of-sight-ish interferer geometry the reactive attack dominates; a
 defender's main channel-level mitigation is denying the attacker an LOS path to the victim.
+
+## Reproducing the experiments
+
+### Setup
+1. Build ns-3.47 with this nr branch in `contrib/nr` (the OLLA port is part of
+   this branch, so no extra patching is needed). `scripts/setup-5glena.sh` shows
+   the exact clone/checkout/build steps used.
+2. Copy the scenario into `scratch/` and build it:
+   ```
+   cp contrib/nr/scenarios/mcs-downgrade.cc scratch/
+   ./ns3 configure --enable-examples -d optimized && ./ns3 build mcs-downgrade
+   ```
+3. The `plot-*.py` scripts need Python 3 with `matplotlib`.
+
+### Script -> result mapping
+Each result has a runner (`run-*.sh`, produces the raw data / console lines) and
+most have a plotter (`plot-*.py` or `make-*-fig.sh`, produces the figure).
+
+| Result | Run | Plot / analyze | Output |
+|---|---|---|---|
+| R1 graded interference (paper Table I) | `run-phase1-sweep.sh` | `analyze-phase1.sh` | console table |
+| R2 OLLA check (paper Table II) | `run-olla-validate.sh` | -- | console table |
+| R2 reactive downgrade (paper Table III, Fig.) | `run-reactive-5glena.sh` | `make-reactive-fig.sh` (`plot-reactive.py`) | `commanded-mcs-5glena-reactive.png` |
+| R3 efficiency trade-off (paper Table IV, Fig.) | `run-ci.sh` | `make-ci-fig.sh` (`plot-ci.py`) | `tradeoff-ci-5glena.png` |
+| Phase-3 trade-off (alt. figure) | `run-phase3.sh` | `make-phase3-fig.sh` (`plot-phase3.py`) | `tradeoff-5glena-phase3.png` |
+| Realistic-sensing robustness | `run-sensing.sh` | -- | console |
+| Plant spills (single runs) | `run-plant.sh` | -- | console |
+| Delayed-feedback resonance (Fig.) | `run-delay-fine.sh` (coarse: `run-delay-sweep.sh`) | `plot-delay-fine.py` (`analyze-delay.py`) | `delay-resonance-5glena.png` |
+| Channel-condition regime (Fig.) | `run-channel-regime.sh` | `plot-regime.py` | `channel-regime-5glena.png` |
+| Spill reconciliation (108 vs 53) | `reconcile-spills.sh` | -- | console |
+
+Helpers: `inspect-rxtrace.sh` (inspect the per-block trace columns) and
+`dump-phase3.sh` (dump a phase-3 run).
+
+### Portability note
+The scripts were written for the author's WSL setup. They hard-code paths such as
+`$HOME/projects/5glena/ns-3-dev` for the build tree and write raw data under
+`$HOME/projects/5glena/<campaign>/`. The `plot-*.py` scripts write the figures to a
+hard-coded Windows path (`/mnt/c/Users/.../paper-figs/`). On another machine, edit
+the `NS3`, `BASE`, and `OUT` variables at the top of each script before running.
