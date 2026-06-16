@@ -44,7 +44,7 @@ New scenario flags: `--reactionDelayMs`, `--plant`, `--plantInflow`, `--channelC
   robust to realistic sensing latency (OLLA recovery ~tens of ms >> reaction lag).
 - **Closed-loop plant** (`--plant`): a bottle-filling `PlantActuator` on the victim UE.
   Stale control commands (deadline misses) leave the inlet valve open -> tank fills ->
-  spill (safety event). Baseline 0 spills; reactive (OLLA on) ~108 spills at duty ~0.21.
+  spill (safety event). Baseline 0 spills; reactive (OLLA on) ~53 spills/2 s at duty ~0.21 (LOS, 8-seed mean; the earlier single-run "108" is reconciled below).
 - **Confidence intervals** (`scripts/run-ci.sh`, 5 RNG seeds): under the random 3GPP
   LOS/NLOS condition the attack is bimodal (fails when the jammer link draws an NLOS deep
   fade, where even broadband fails). Conditioning on LOS isolates the mechanism:
@@ -89,3 +89,23 @@ artifact of sampling only delay 0 and 1 ms. The real picture:
 point; an attacker that can tune its reaction delay (or that lands in a resonant band) can
 amplify physical-process damage ~3x at the same air-time cost. This is NOT "realistic
 sensing is strictly worse." Figure: `figures/delay-resonance-5glena.png`.
+
+## Spill-count reconciliation (the "108" vs "53" figures)
+
+An earlier note paired a single-run plant result -- "reactive (OLLA on) ~108 spills,
+~= SWICS's 110 plant events" -- with the CI campaign's 53 +/- 22. Those are not in
+conflict; they are different channel conditions, and the 108 is an unrepresentative
+single draw (`scripts/reconcile-spills.sh`):
+
+- The 108 is exactly the default `run-plant.sh` run: **Default** (probabilistic 3GPP
+  LOS/NLOS) channel at the **default seed** (RngRun=1).
+- Across Default seeds 1-8 the reactive-on spills are bimodal: **[108, 38, 29, 0, 19,
+  38, 38, 57]**, mean **41 +/- 27** -- i.e. 108 is the *worst* of the eight draws (seed 4
+  even hits 0 spills, where the jammer link geometry prevents trapping the MCS so duty
+  runs away to ~1.0).
+- Conditioning on **LOS** (8 seeds) gives **52.5 +/- 11.2** spills, tight and stable.
+
+**Corrected statement**: reactive jamming produces O(50) plant safety events / 2 s in the
+controlled LOS case (single-draw values range 0-108 over the random channel). This is the
+*same order* as SWICS's 110 events, but the precise 108~=110 match was a coincidence of an
+outlier seed and should not be cited as a quantitative correspondence.
