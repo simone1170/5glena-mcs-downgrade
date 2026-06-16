@@ -134,20 +134,22 @@ NrMacSchedulerCQIManagement::DlCqiReported(const DlCqiInfo& info,
     ueInfo->m_dlCqi.m_timer = expirationTime;
     ueInfo->m_dlCqi.m_cqiType = NrMacSchedulerUeInfo::CqiInfo::WB;
     ueInfo->m_dlCqi.m_wbCqi = info.m_wbCqi;
-    ueInfo->m_dlMcs =
+    // Store the pure CQI-derived MCS as the OLLA base. maxDlMcs is int8_t and may
+    // be a negative "no limit" sentinel, so interpret it as uint8_t for the clamp.
+    ueInfo->m_dlMcsBase =
         std::min(static_cast<uint8_t>(GetAmcDl()->GetMcsFromCqi(ueInfo->m_dlCqi.m_wbCqi)),
                  static_cast<uint8_t>(maxDlMcs));
-    // OLLA: apply per-UE offset (0 when disabled) on top of the CQI-derived MCS.
-    // Note: maxDlMcs is int8_t and may be a negative "no limit" sentinel, so it
-    // must be interpreted as uint8_t for the upper clamp (matches the line above).
+    ueInfo->m_dlMcs = ueInfo->m_dlMcsBase;
+    // Effective MCS = base + OLLA offset (0 when disabled), upper-bounded by both the
+    // scheduler limit and the AMC's highest valid MCS so a positive offset cannot make
+    // an invalid MCS. NB: NrMacSchedulerNs3::DoSchedDlTriggerReq re-applies this every
+    // DL slot, so the offset tracks HARQ feedback at slot cadence, not only at CQI reports.
     if (ueInfo->m_dlOllaOffset != 0.0)
     {
         double off = ueInfo->m_dlOllaOffset;
-        // Upper bound: both the (uint8-interpreted) scheduler limit and the AMC's
-        // highest valid MCS index, so a positive offset cannot produce an invalid MCS.
         int upper = std::min(static_cast<int>(static_cast<uint8_t>(maxDlMcs)),
                              static_cast<int>(GetAmcDl()->GetMaxMcs()));
-        int adj = static_cast<int>(ueInfo->m_dlMcs) +
+        int adj = static_cast<int>(ueInfo->m_dlMcsBase) +
                   static_cast<int>(off >= 0 ? off + 0.5 : off - 0.5);
         adj = std::max(0, std::min(adj, upper));
         ueInfo->m_dlMcs = static_cast<uint8_t>(adj);
@@ -227,6 +229,7 @@ NrMacSchedulerCQIManagement::RefreshDlCqiMaps(
             ue->m_dlCqi.m_wbCqi = 1; // lowest value for trying a transmission
             ue->m_dlCqi.m_cqiType = NrMacSchedulerUeInfo::CqiInfo::WB;
             ue->m_dlMcs = GetStartMcsDl();
+            ue->m_dlMcsBase = GetStartMcsDl();
         }
         else
         {

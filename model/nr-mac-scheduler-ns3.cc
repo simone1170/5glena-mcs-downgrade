@@ -612,6 +612,7 @@ NrMacSchedulerNs3::DoCschedUeConfigReq(
         UeInfoOf(*itUe)->m_ulHarq.SetMaxSize(
             static_cast<uint8_t>(m_macSchedSapUser->GetNumHarqProcess()));
         UeInfoOf(*itUe)->m_dlMcs = m_startMcsDl;
+        UeInfoOf(*itUe)->m_dlMcsBase = m_startMcsDl;
         UeInfoOf(*itUe)->m_startMcsDlUe = m_startMcsDl;
         UeInfoOf(*itUe)->m_ulMcs = m_startMcsUl;
         UeInfoOf(*itUe)->m_dlAmc = m_dlAmc;
@@ -2510,6 +2511,23 @@ NrMacSchedulerNs3::DoSchedDlTriggerReq(
             {
                 off = std::max(m_ollaMinOffset, off - m_ollaStep);
             }
+        }
+    }
+
+    // OLLA (DL): re-derive each UE's effective MCS from its CQI base + current offset
+    // every DL slot, so the offset (updated above from fresh HARQ feedback) takes effect
+    // at slot/HARQ cadence rather than waiting for the next CQI report.
+    if (m_useOlla)
+    {
+        const int upper = static_cast<int>(GetDlAmc()->GetMaxMcs());
+        for (const auto& itUe : m_ueMap)
+        {
+            const auto& ue = itUe.second;
+            const double off = ue->m_dlOllaOffset;
+            int adj = static_cast<int>(ue->m_dlMcsBase) +
+                      static_cast<int>(off >= 0 ? off + 0.5 : off - 0.5);
+            adj = std::max(0, std::min(adj, upper));
+            ue->m_dlMcs = static_cast<uint8_t>(adj);
         }
     }
 
