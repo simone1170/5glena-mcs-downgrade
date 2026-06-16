@@ -247,14 +247,16 @@ command is late, the inlet valve stays open and the tank fills; if enough comman
 missed in a row, the tank overflows and we count a fault (a safety event). This turns
 link-level deadline misses into a physical-damage count.
 
-We read the commanded MCS, the corrupt flag, and the BLER from the per-block trace. We measure the URLLC failure rate as
+We read the commanded MCS, the corrupt flag, and the BLER from the per-block trace. A
+control packet is useful only if it arrives before its deadline, so we measure the
+URLLC failure rate as the fraction of packets that are lost or late,
 $(\mathrm{tx}-(\mathrm{rx}-\mathrm{late}))/\mathrm{tx}$, where \emph{late} packets
-arrive after the deadline; this counts both lost and late packets and does not
+arrive after the deadline. This counts both lost and late packets and does not
 undercount packets still queued at the end of the run. We report the jammer duty cycle
 as the attacker cost. We run on the line-of-sight (LOS) channel to isolate the
-mechanism from the random line-of-sight / non-line-of-sight (NLOS) draw, repeat each
-case over several random seeds, and report 95\% confidence intervals (CIs) using the
-Student-$t$ distribution.
+mechanism from the random line-of-sight / non-line-of-sight (NLOS) draw. The channel is
+random, so we repeat each case over several random seeds and report the spread as a
+95\% confidence interval (CI), computed with the Student-$t$ distribution.
 
 \section{Results}
 
@@ -368,9 +370,11 @@ of Section~\ref{sec:methods} is not a simple function of how often the jammer fi
 vary the attacker's sensing delay (Fig.~\ref{fig:resonance}). The per-packet failure rate stays
 near 99.9\% at every delay, but the number of faults changes by a large factor and is
 not monotonic. Some delays cause few faults; others nearly saturate the count. The
-reason is that faults need clustered losses, not just a high average loss rate. At some
-delays the jammer fires through the victim's recovery windows, so losses become
-contiguous and the actuator runs open for long stretches. This is a feedback resonance
+reason is that a fault needs a run of consecutive misses, not just a high average miss
+rate: the tank overflows only if the valve stays open long enough. So the same 99.9\%
+per-packet failure can produce very different fault counts, depending on how the misses
+cluster in time. At some delays the jammer fires through the victim's recovery windows,
+so misses become contiguous and the actuator runs open for long stretches. This is a feedback resonance
 between the jammer, the link-adaptation loop, and the control loop. It means an
 attacker that can tune its reaction delay can raise physical damage at the same on-air
 cost. It deserves separate study.
