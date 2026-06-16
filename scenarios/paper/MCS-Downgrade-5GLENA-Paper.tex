@@ -105,7 +105,8 @@ gNB to the UE. The gNB sends data in units called transport blocks (TBs). For ea
 it picks a Modulation and Coding Scheme (MCS). The MCS sets how many bits the block
 carries and how much error-correction it adds. A high MCS sends many bits in little
 airtime but needs a clean channel. A low MCS sends fewer bits but survives a noisy
-channel. Choosing the MCS is a trade-off between speed and reliability.
+channel. In 5G the MCS is an index from 0 (lowest rate, most robust) to 28 (highest
+rate). Choosing the MCS is a trade-off between speed and reliability.
 
 \subsection{Choosing the MCS: two feedback loops}
 The gNB cannot see the channel directly. It learns the channel from feedback, through
@@ -118,11 +119,12 @@ rate (BLER, the fraction of blocks that fail to decode) near a target, often 10\
 
 The \emph{outer loop} corrects the inner loop. After each block the UE sends Hybrid
 Automatic Repeat reQuest (HARQ) feedback: an acknowledgement (ACK) if the block
-decoded, or a negative acknowledgement (NACK) if it did not. A method called
-outer-loop link adaptation (OLLA) keeps a small offset per UE. It lowers the offset on
-each NACK and raises it on each ACK. The offset shifts the chosen MCS until the real
-BLER matches the target. Without OLLA, only the CQI sets the MCS, and decoding
-failures never lower it.
+decoded, or a negative acknowledgement (NACK) if it did not. A NACK on its own only
+asks the gNB to resend the same block at the same MCS; it does not lower the rate. A
+method called outer-loop link adaptation (OLLA) adds that link. It keeps a small offset
+per UE, lowers the offset on each NACK, and raises it on each ACK. The offset shifts the
+chosen MCS until the real BLER matches the target. Without OLLA, only the CQI sets the
+MCS, and decoding failures never lower it.
 
 \begin{figure}[t]\centering
 \begin{tikzpicture}[>=Latex,font=\footnotesize,
@@ -160,7 +162,9 @@ and have hard deadlines. A low MCS makes each message take longer to send. When 
 link is trapped at a low MCS, messages miss their deadlines and the control loop
 fails. The attacker does not need to block the link. It only needs to push the MCS
 down and keep it there. This is cheaper and quieter than broadband jamming, which must
-transmit all the time and is easy to detect.
+transmit all the time and is easy to detect. We measure the attacker's cost as its duty
+cycle: the fraction of time it actually transmits. A broadband jammer has a duty cycle
+of one; a good reactive jammer has a much smaller one.
 
 \section{Hypotheses and Methods}
 \label{sec:methods}
@@ -209,15 +213,18 @@ the interferer's transmit power.}
 
 \subsection{OLLA loop}
 5G-LENA selects the DL MCS from CQI alone; NACKs trigger only a same-MCS
-retransmission. We add a standard OLLA loop. Each UE keeps an offset $\Delta$ in
-MCS-index units. On a DL NACK we set $\Delta \leftarrow \max(\Delta_{\min},
+retransmission. We add a standard OLLA loop. The idea is simple: nudge the rate down a
+little on each failure and up a little on each success, so the failure rate settles at a
+target. Each UE keeps an offset $\Delta$ in MCS-index units. On a DL NACK we set $\Delta \leftarrow \max(\Delta_{\min},
 \Delta - s)$. On a DL ACK we set $\Delta \leftarrow \min(\Delta_{\max}, \Delta +
 s\,B/(1-B))$, for step $s$ and target BLER $B$. We update $\Delta$ from freshly
 received HARQ feedback only, so a NACK awaiting retransmission is not counted twice. We
 store the pure CQI-derived MCS as a base and re-derive the effective MCS,
 $\mathrm{clamp}(\mathrm{round}(\mathrm{base}+\Delta),0,\mathrm{MCS}_{\max})$, at every
-DL slot. This makes the offset act at HARQ speed, not only when a new CQI arrives. We
-use $s=0.1$ and $B=0.1$, and expose OLLA as an on/off switch.
+DL slot. This makes the offset act at HARQ speed, not only when a new CQI arrives. The
+ACK step is smaller than the NACK step: at a 10\% target there are about nine ACKs per
+NACK, and the factor $B/(1-B)$ balances them so the offset settles where the BLER equals
+$B$. We use $s=0.1$ and $B=0.1$, and expose OLLA as an on/off switch.
 
 \subsection{Reactive jammer}
 The reactive jammer reads the victim's commanded DL MCS from the per-block trace and
@@ -229,10 +236,18 @@ ticks spent jamming), which we use as the on-air cost. The Downlink Control Info
 so reading the MCS is a realistic attacker capability. We use a threshold of 10.
 
 \subsection{Traffic, plant, and metrics}
-For link-adaptation measurements the victim runs saturating DL traffic. For the impact
-study the victim runs periodic URLLC traffic: one 1000-byte packet every 1\,ms with a
-2\,ms deadline. We read the commanded MCS, the corrupt flag, and the BLER from the
-per-block trace. We measure the URLLC failure rate as
+For link-adaptation measurements the victim runs saturating DL traffic (the link always
+has data to send). For the impact study the victim runs periodic URLLC traffic: one
+1000-byte packet every 1\,ms with a 2\,ms deadline.
+
+To measure physical impact we attach a simple closed-loop process to the victim,
+modelled on a bottle-filling plant. A remote controller sends one command per URLLC
+packet. While commands arrive on time, the actuator holds a tank at its set level. If a
+command is late, the inlet valve stays open and the tank fills; if enough commands are
+missed in a row, the tank overflows and we count a fault (a safety event). This turns
+link-level deadline misses into a physical-damage count.
+
+We read the commanded MCS, the corrupt flag, and the BLER from the per-block trace. We measure the URLLC failure rate as
 $(\mathrm{tx}-(\mathrm{rx}-\mathrm{late}))/\mathrm{tx}$, where \emph{late} packets
 arrive after the deadline; this counts both lost and late packets and does not
 undercount packets still queued at the end of the run. We report the jammer duty cycle
@@ -348,11 +363,9 @@ to cause the same damage.
 
 Two further effects are worth noting.
 
-\textbf{Sensing delay and a feedback resonance.} The damage to a closed control loop
-is not a simple function of how often the jammer fires. We drive a periodic actuator
-over the URLLC flow. A control command keeps the actuator at its set point; a stale
-command lets it run open, and a long enough gap causes a fault. We then vary the
-attacker's sensing delay (Fig.~\ref{fig:resonance}). The per-packet failure rate stays
+\textbf{Sensing delay and a feedback resonance.} The damage to the closed-loop plant
+of Section~\ref{sec:methods} is not a simple function of how often the jammer fires. We
+vary the attacker's sensing delay (Fig.~\ref{fig:resonance}). The per-packet failure rate stays
 near 99.9\% at every delay, but the number of faults changes by a large factor and is
 not monotonic. Some delays cause few faults; others nearly saturate the count. The
 reason is that faults need clustered losses, not just a high average loss rate. At some
