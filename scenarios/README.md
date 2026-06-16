@@ -119,3 +119,34 @@ re-run. The resonance is essentially unchanged (troughs still at delay ~0 and
 is NOT an artifact of OLLA's CQI-cadence quantization -- it is a structural
 property of the reactive jammer<->HARQ<->plant loop. `figures/delay-resonance-5glena.png`
 is regenerated from the fixed-OLLA data.
+
+## Scope of the headline: LOS-conditioned mechanism + random-channel regime
+
+The ~4x efficiency headline (reactive reaches ~100% URLLC failure at duty ~0.25 vs
+broadband's 1.0) is reported under a **LOS-conditioned** channel. This is a deliberate
+mechanism-isolation choice, not cherry-picking: under the random 3GPP LOS/NLOS condition
+the *jammer->victim* link is itself a random draw, which degrades BOTH the reactive and
+the broadband attacker. LOS conditioning removes that shared lottery so the comparison
+reflects the link-adaptation mechanism, not channel luck.
+
+The random-channel behaviour is reported here as a **separate result**
+(`scripts/run-channel-regime.sh`, Default 3GPP condition, 12 seeds; the victim's own link
+is stable -- baseline failed% = 0.2 and 0 spills across all 12 seeds -- so the variation is
+entirely on the jammer->victim path):
+
+| outcome | reactive seeds | duty | URLLC failed% | plant spills |
+|---|---|---|---|---|
+| attack **succeeds** | 10 / 12 | 0.18-0.56 | 99.9 | ~58 |
+| attack **fails** (jammer link NLOS) | 2 / 12 | 1.00 | 23.7 | 0 |
+
+- The reactive attack is **bimodal**: it succeeds at low duty in 10/12 realizations and
+  collapses in 2/12, where the jammer link draws an NLOS fade so the jammer cannot trap the
+  victim's MCS -- its controller then fires continuously (duty -> 1.0) yet the victim is
+  spared (0 spills).
+- **Broadband is channel-dependent too**: mean URLLC failed% is only 76% (vs 100% under LOS)
+  and it causes plant spills in just 7/12 seeds. So NLOS draws hurt broadband as well --
+  confirming the LOS conditioning is a fair isolation rather than a thumb on the scale.
+
+Figure: `figures/channel-regime-5glena.png`. Practical reading: against a fixed industrial
+victim with a line-of-sight-ish interferer geometry the reactive attack dominates; a
+defender's main channel-level mitigation is denying the attacker an LOS path to the victim.
