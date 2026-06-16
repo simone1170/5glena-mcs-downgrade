@@ -59,3 +59,33 @@ New scenario flags: `--reactionDelayMs`, `--plant`, `--plantInflow`, `--channelC
 
   Reactive (OLLA on) reaches 99.9% deadline failure at duty 0.255 vs broadband's 1.0
   (~4x efficiency); OLLA gives ~2.4x efficiency. Figure: `figures/tradeoff-ci-5glena.png`.
+
+## Delayed-feedback resonance (correction to the realistic-sensing note)
+
+An earlier note claimed a 1 ms sensing delay made the attack "more damaging" to the
+plant. A reaction-delay sweep (`scripts/run-delay-sweep.sh`, 5 delays x 8 seeds; finer
+`scripts/run-delay-fine.sh`, 12 delays x 5 seeds; LOS, plant on) shows that was an
+artifact of sampling only delay 0 and 1 ms. The real picture:
+
+- **The per-packet attack is delay-robust**: URLLC `failed%` ~= 99.9 and jammer
+  duty ~= 0.2 at *every* delay 0-3 ms.
+- **Plant damage is NON-MONOTONIC in delay** -- a delayed-feedback resonance in the
+  jammer<->OLLA<->HARQ closed loop:
+
+  | delay (ms) | plant spills / 2 s | plant-stale fraction |
+  |---|---|---|
+  | 0.00 | 53 | 44% |
+  | 0.25-1.0 | ~160 | ~94% (high plateau) |
+  | 1.25-1.5 | ~44-53 | ~37% (trough, below idealized) |
+  | 1.75-3.0 | ~170 | ~98% (saturated) |
+
+- **Mechanism**: a spill needs ~10 contiguous stale control steps (a >=~10 ms delivery
+  gap), so spills measure loss *clustering*, not average failure -- which is why they
+  swing 37-98% while per-packet `failed%` stays pinned at ~99.9 (late packets arrive in
+  bursts that refresh the plant). At resonant delays the jammer keeps firing through the
+  victim's recovery windows, so stale steps become near-contiguous and the tank overflows.
+
+**Correct claim**: the idealized (delay-0) jammer sits at a *low* plant-damage operating
+point; an attacker that can tune its reaction delay (or that lands in a resonant band) can
+amplify physical-process damage ~3x at the same air-time cost. This is NOT "realistic
+sensing is strictly worse." Figure: `figures/delay-resonance-5glena.png`.
