@@ -109,3 +109,13 @@ single draw (`scripts/reconcile-spills.sh`):
 controlled LOS case (single-draw values range 0-108 over the random channel). This is the
 *same order* as SWICS's 110 events, but the precise 108~=110 match was a coincidence of an
 outlier seed and should not be cited as a quantitative correspondence.
+
+### Resonance is robust to the OLLA slot-cadence fix
+
+After moving OLLA offset application from CQI-report instants to every DL slot
+(commit "OLLA: apply offset at DL-scheduling cadence"), the delay sweep was
+re-run. The resonance is essentially unchanged (troughs still at delay ~0 and
+~1.25-1.5 ms; high plateau ~158-163; saturated bands 170+/-0). So the resonance
+is NOT an artifact of OLLA's CQI-cadence quantization -- it is a structural
+property of the reactive jammer<->HARQ<->plant loop. `figures/delay-resonance-5glena.png`
+is regenerated from the fixed-OLLA data.
