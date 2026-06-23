@@ -315,8 +315,8 @@ $B$. We use $s=0.1$ and $B=0.1$, and expose OLLA as an on/off switch.
 \subsection{Reactive jammer}
 The reactive jammer reads the victim's commanded DL MCS from the per-block trace and
 controls the interferer power. While the observed MCS is at or above a threshold, it
-sets the interferer to high power (jam). Below the threshold, it sets it to low power
-(silent). It runs on a 100\,$\mu$s tick and reports its duty cycle (the fraction of
+sets the interferer to high power (jam, 50\,dBm). Below the threshold, it sets it to low
+power (silent, $-50$\,dBm). It runs on a 100\,$\mu$s tick and reports its duty cycle (the fraction of
 ticks spent jamming), which we use as the on-air cost. Reading the victim's MCS is a
 realistic capability because the DCI is unprotected (Section~\ref{sec:threat}); here we
 read it from the trace and discuss that idealization in Section~\ref{sec:validity}. We
@@ -418,11 +418,15 @@ not.}
 \label{fig:mcs}\end{figure}
 
 \subsection*{R3: Reactive jamming is cheaper than broadband}
-We compare the reactive jammer against a broadband jammer (constant 40\,dBm, duty 1.0)
-under URLLC traffic (Table~\ref{tab:r3}, Fig.~\ref{fig:tradeoff}). Both reach about
-99.9\% deadline failure. The reactive jammer does so at a duty cycle of 0.255, against
-the broadband jammer's 1.0: it reaches the same damage at about one quarter of the
-on-air time. This confirms H3. The effect again needs OLLA: with OLLA off the reactive
+We compare the reactive jammer (50\,dBm when on) against a broadband jammer under URLLC
+traffic (Table~\ref{tab:r3}, Fig.~\ref{fig:tradeoff}). To keep the comparison fair on
+power, we run the broadband jammer at both 40 and 50\,dBm; the 50\,dBm case matches the
+reactive jammer's on-power. All the jammers reach essentially full deadline failure:
+broadband 100\% at duty 1.0, reactive about 99.9\% at duty 0.255. The reactive jammer
+reaches the same damage at about one quarter of the on-air time. This confirms H3. Since
+the matched-power broadband jammer (50\,dBm) still runs at duty 1.0, the reactive jammer
+wins not only on on-air time but, at equal peak power, on radiated energy too (energy is
+power times time). The effect again needs OLLA: with OLLA off the reactive
 jammer reaches the same failure rate but at a duty cycle of 0.611, so OLLA makes the
 attack about $2.4\times$ cheaper. The confidence intervals on duty cycle do not
 overlap.
@@ -434,6 +438,7 @@ overlap.
 Scenario & duty & failed\% \\\midrule
 baseline & 0 & 0.2 \\
 broadband 40\,dBm & 1.0 & $100\pm0$ \\
+broadband 50\,dBm & 1.0 & $100\pm0$ \\
 reactive, OLLA on & $0.255\pm0.080$ & $99.9$ \\
 reactive, OLLA off & $0.611\pm0.020$ & $99.9$ \\\bottomrule
 \end{tabular}\end{table}
