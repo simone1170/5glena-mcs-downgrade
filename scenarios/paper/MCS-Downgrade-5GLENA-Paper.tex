@@ -8,7 +8,7 @@
 \usepackage{xcolor}
 \usepackage{url}
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,calc}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,backgrounds}
 \usepackage[hidelinks]{hyperref}
 
 \begin{document}
@@ -23,27 +23,30 @@ Link Adaptation}
 \maketitle
 
 \begin{abstract}
-Factories increasingly run their control loops over private 5G, where each message
-must arrive within a hard deadline. 5G chooses a Modulation and Coding Scheme (MCS)
-for each user from two feedback signals that are not protected against tampering:
-Channel Quality Indicator (CQI) reports and Hybrid Automatic Repeat reQuest (HARQ)
-acknowledgements. A reactive jammer can abuse this. It stays silent until the victim
-uses a high MCS, sends a short pulse to corrupt that data block, and lets the
-resulting failed-decode message push the MCS down. Repeating this traps the victim at
-a low MCS, so control messages take longer and miss their deadlines. We build this
-attack in the ns-3 5G-LENA simulator, where interference is graded and feeds a
-measured error model, so a jammed block is received-but-corrupted rather than simply
-dropped. We add a standard outer-loop link adaptation (OLLA) loop, which 5G-LENA
-lacks. The downgrade then emerges from the radio model itself, with no injected
-effect: the victim MCS falls from about 28 to about 9, and only when OLLA is on. This
-is the central result: a faithful, radio-level existence proof of the downgrade, which
-an all-or-nothing jamming model cannot produce. As an efficiency figure, on a clean
-line-of-sight path the attack reaches the same deadline-failure rate as broadband
-jamming at about one quarter of the on-air time; we report this as a best case, because
-under a realistic random channel the effect is bimodal --- it still succeeds cheaply on
-most geometries but fails when the jammer cannot reach the victim. We state the
-idealizations the result rests on, and the one PHY-level assumption a link-level
-simulator should check.
+Factories are starting to run their machine controls over private 5G networks, where
+every message has to arrive on time. To stay fast, 5G keeps changing the speed of each
+link based on how good the radio signal looks. It sets the speed with a value called a
+Modulation and Coding Scheme (MCS), and it chooses the MCS from two feedback signals
+sent back by the receiver. 5G protects neither signal against tampering. We show how an
+attacker can abuse this. The attacker stays quiet until the link is running fast, then
+sends a short burst of interference that spoils one block of data. The failed block
+makes the network think the link has gone bad, so it lowers the speed. By repeating
+this, the attacker keeps the link stuck at a low speed. Messages then take too long,
+miss their deadlines, and the control loop breaks.
+
+We build this attack in a 5G network simulator (ns-3 5G-LENA). In this simulator
+interference builds up gradually and runs through a real error model, so a jammed block
+is damaged but still received, not simply thrown away. We also add a common speed-control
+feature that the simulator was missing, called outer-loop link adaptation (OLLA). With
+these pieces in place the slowdown happens on its own, straight from the radio model,
+with nothing faked: the link speed falls from near the top setting to near the bottom,
+and only when the outer loop is turned on. This is our main result, and a simpler
+simulator that just drops jammed blocks cannot show it. On a clear, direct radio path
+the attack causes as many missed deadlines as ordinary always-on jamming while
+transmitting only about a quarter of the time. We give this as a best case: on a
+realistic, randomly changing channel the attack still works cheaply in most setups, but
+fails when the attacker has no clear path to the victim. We also list the simplifying
+assumptions behind the result.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -61,51 +64,52 @@ michaelides2025secure}. 5G offers a service class for exactly this need, called
 ultra-reliable low-latency communication (URLLC). The timing budget is tight, so even
 small protocol overheads matter~\cite{michaelides2026latency}.
 
-We study an attack that turns one of 5G's core features against this promise. The
-feature is \emph{link adaptation}: the network constantly chooses how fast to send
-data based on how good the channel looks. We explain link adaptation in
-Section~\ref{sec:bg}. The short version is that the network lowers the data rate when
-it sees transmission failures. An attacker can cause those failures on purpose, with
-brief and well-timed interference, and so steer the data rate down. A low data rate
-means each control message takes longer to send. If the attacker keeps the rate low,
-messages miss their deadlines and the control loop fails. This is the
-\textbf{MCS-downgrade reactive jamming} attack.
+We study an attack that turns one of 5G's main features against this promise. The
+feature is \emph{link adaptation}: the network keeps choosing how fast to send data,
+based on how good the channel looks (we explain it in Section~\ref{sec:bg}). The key
+point is simple: when the network sees data fail to arrive, it slows the link down. An
+attacker can make data fail on purpose, using short, well-timed bursts of interference,
+and so push the speed down. A slower link means each control message takes longer to
+send. If the attacker keeps the link slow, messages start missing their deadlines and
+the control loop fails. We call this the \textbf{MCS-downgrade reactive jamming}
+attack. The idea is not new in wireless generally: smart jamming can trap IEEE~802.11
+rate adaptation at a low rate, because the link recovers more slowly than it backs
+off~\cite{thapa2011rate}. Our contribution is to bring it to 5G link adaptation, make it
+emerge from the radio model instead of injecting it by hand, and measure its impact on an
+industrial control loop.
 
-The attack depends on one step: a jammed high-rate block must produce a feedback
-signal that link adaptation turns into a lower rate. This step needs a specific
-property from any simulator used to study it. The block must be
-\emph{received-but-corrupted} so that it generates a failed-decode report. A simulator
-that drops a jammed block before its error model runs cannot produce this outcome: the
-block disappears, no failure is reported, and the rate is never lowered. Some
-industrial-5G testbeds model jamming this way, as an all-or-nothing gate on whole
-receptions~\cite{lenz2026security}. In such a model the attack cannot emerge from the
-radio layer; it can only be added by hand.
+The whole attack rests on one step: a jammed fast block has to come back as a failure
+report that the network then turns into a lower speed. This puts a requirement on any
+simulator used to study it. The block has to be \emph{damaged but still received}, so
+that it produces a failure report. If the simulator instead drops a jammed block before
+its error model runs, the block just vanishes: no failure is reported, and the speed is
+never lowered. Some industrial-5G testbeds model jamming in this all-or-nothing
+way~\cite{lenz2026security}, and in such a model the attack cannot come out of the radio
+layer by itself; someone must add it by hand.
 
-We therefore build the attack in ns-3 5G-LENA, a 5G simulator in which interference is
-graded. Every signal on the shared channel adds to the interference, the resulting
-signal quality feeds a measured error model, and a block can be received-but-corrupted.
-The downgrade then appears on its own, from the radio-frequency (RF) model, with no
-injected effect. Our contributions are:
+We therefore build the attack in ns-3 5G-LENA, a 5G simulator where interference adds up
+gradually. Every signal on the shared channel adds to the interference, the resulting
+signal quality runs through a real error model, and a block can be damaged but still
+received. Our contributions are:
 \begin{enumerate}
-\item We show that a constant co-channel interferer in 5G-LENA produces graded signal
-loss and received-but-corrupted blocks, not an all-or-nothing reception gate
+\item We show that a steady interfering signal in 5G-LENA does not delete the victim's
+blocks; it weakens them, so some arrive with errors. This is what the attack needs
 (Section~\ref{sec:r1}).
-\item We add a standard OLLA loop to the 5G-LENA scheduler, which has none, and apply
-its correction at every transmission opportunity (Section~\ref{sec:bg},
-Section~\ref{sec:methods}).
-\item We build a reactive, rate-aware jammer and show that the downgrade emerges from
-the radio model with no injected effect: the victim rate falls from a high MCS to a
-low one, and only when OLLA is on (Section~\ref{sec:r2}).
-\item We measure the attack against broadband jamming under matched URLLC traffic. On a
-line-of-sight path it reaches the same deadline-failure rate at about one quarter of the
-on-air time (Section~\ref{sec:r3}); we present this as a best-case efficiency figure, not
-a universal one.
-\item We characterize the attack under a realistic random channel and show it is
-bimodal: cheap and effective on most geometries, but defeated when the jammer-to-victim
-path fades (Section~\ref{sec:r4}). We treat this as a co-equal result, not a caveat.
-\item We test whether the downgrade survives the OLLA tuning and show it holds across a
-range of step sizes and target error rates (Section~\ref{sec:r5}), so the result is not
-an artifact of one parameter choice.
+\item We add the standard outer-loop (OLLA) feature to the 5G-LENA scheduler, which did
+not have it, and apply its correction on every transmission
+(Section~\ref{sec:bg}, Section~\ref{sec:methods}).
+\item We build a jammer that watches the victim's link speed and jams only when it is
+high. The speed then falls on its own, from the radio model, and only when the outer
+loop is on (Section~\ref{sec:r2}).
+\item We compare the attack with ordinary always-on jamming when the victim carries
+time-critical traffic. On a clear radio path it causes the same number of missed
+deadlines while transmitting only about a quarter of the time
+(Section~\ref{sec:r3}); we give this as a best case, not a guarantee.
+\item We test the attack on a realistic, randomly changing channel. It still works
+cheaply in most setups, but fails when the attacker's path to the victim fades. We
+report this as a result in its own right (Section~\ref{sec:r4}).
+\item We check that the slowdown does not depend on how we tuned the outer loop: it
+holds across a range of settings (Section~\ref{sec:r5}).
 \end{enumerate}
 
 \section{Background: How 5G Link Adaptation Works and Why We Attack It}
@@ -134,7 +138,7 @@ The \emph{outer loop} corrects the inner loop. After each block the UE sends Hyb
 Automatic Repeat reQuest (HARQ) feedback: an acknowledgement (ACK) if the block
 decoded, or a negative acknowledgement (NACK) if it did not. A NACK on its own only
 asks the gNB to resend the same block at the same MCS; it does not lower the rate. A
-method called outer-loop link adaptation (OLLA) adds that link. It keeps a small offset
+method called outer-loop link adaptation (OLLA)~\cite{sampath1997olla} adds that link. It keeps a small offset
 per UE, lowers the offset on each NACK, and raises it on each ACK. The offset shifts the
 chosen MCS until the real BLER matches the target. Without OLLA, only the CQI sets the
 MCS, and decoding failures never lower it.
@@ -142,30 +146,40 @@ MCS, and decoding failures never lower it.
 \begin{figure}[t]\centering
 \begin{tikzpicture}[>=Latex,font=\footnotesize,
  box/.style={draw,rounded corners,align=center,minimum height=10mm,minimum width=24mm},
+ olla/.style={draw,rounded corners,fill=blue!6,align=center,minimum height=9mm,minimum width=22mm},
  att/.style={draw,rounded corners,fill=red!8,align=center,minimum height=9mm,minimum width=28mm}]
  \node[box] (gnb) at (0,0) {gNB scheduler\\(picks the MCS)};
- \node[box] (ue) at (6.4,0) {UE (victim)};
- % feedback arcs above the data line
- \draw[->] (ue) to[out=150,in=30] node[pos=0.5,above]{HARQ ACK / NACK (outer loop)} (gnb);
- \draw[->] (ue) to[out=120,in=60] node[pos=0.5,above]{CQI report (inner loop)} (gnb);
- % downlink data on the line
- \draw[->,very thick] (gnb) -- node[pos=0.5,above=1pt]{data block (chosen MCS)} (ue);
+ \node[box] (ue)  at (7.4,0) {UE (victim)};
+ \node[olla] (olla) at (3.7,2.7) {OLLA};
+ % downlink data block (main path)
+ \draw[->,very thick] (gnb) -- node[pos=0.5,fill=white,inner sep=2pt]{data block at chosen MCS} (ue);
+ % INNER loop: CQI, small arc just above the data line (inside the outer loop)
+ \draw[->] (ue) to[out=150,in=30]
+   node[pos=0.5,fill=white,inner sep=1.5pt]{CQI report \;(inner loop)} (gnb);
+ % OUTER loop: HARQ ACK/NACK up to OLLA, then MCS offset down to the scheduler
+ \draw[->] (ue.north) to[out=90,in=0]
+   node[pos=0.55,above,align=center]{HARQ\\ACK/NACK} (olla.east);
+ \draw[->] (olla.west) to[out=180,in=90]
+   node[pos=0.45,above left,align=center]{MCS offset\\(outer loop)} (gnb.north);
  % attacker below the data line
- \node[att] (j) at (3.2,-2.0) {reactive jammer};
- \draw[->,dashed] (2.5,-0.16) -- (2.5,-1.55) node[pos=0.5,left]{observe MCS};
- \draw[->,red,thick] (3.9,-1.55) -- (3.9,-0.16) node[pos=0.5,right]{jam high-MCS block};
+ \node[att] (j) at (3.7,-2.1) {reactive jammer};
+ \draw[->,dashed] (2.9,-0.55) -- (2.9,-1.65) node[pos=0.5,left]{observe MCS};
+ \draw[->,red,thick] (4.5,-1.65) -- (4.5,-0.55) node[pos=0.5,right=3pt]{jam high-MCS block};
 \end{tikzpicture}
-\caption{5G downlink link adaptation and the attacker. The gNB picks the MCS from two
-feedback loops: CQI reports (inner loop) and HARQ ACK/NACK through OLLA (outer loop).
-The reactive jammer reads the victim's MCS and jams only high-MCS blocks. Each jammed
-block returns a NACK, which OLLA turns into a lower MCS.}
+\caption{5G downlink link adaptation, and where the attacker acts. The gNB sends a data
+block at the chosen MCS. Two feedback loops set that MCS: the \emph{inner loop} (the CQI
+report, the small arc next to the data) and the \emph{outer loop} (HARQ ACK/NACK, which
+feeds the OLLA correction back to the scheduler, the larger loop over the top). The
+reactive jammer watches the victim's MCS and jams only high-MCS blocks; each jammed block
+returns a NACK, which OLLA turns into a lower MCS.}
 \label{fig:loop}\end{figure}
 
 \subsection{Why this is a good target}
 Two facts make link adaptation worth attacking.
 
-First, the feedback is not protected. CQI and HARQ are not integrity-protected at the
-physical and link layers. An attacker cannot forge them, but it can change the channel
+First, the feedback is not protected. 5G does not integrity-protect CQI or HARQ at the
+physical and link layers; this is part of a broader gap in the 5G control
+plane~\cite{jover2019security}. An attacker cannot forge them, but it can change the channel
 that produces them. A short, well-timed jamming pulse makes a high-MCS block fail to
 decode. The UE then sends a genuine NACK. OLLA reads that NACK and lowers the MCS. The
 attacker uses the network's own control loop against it.
@@ -175,12 +189,52 @@ and have hard deadlines. A low MCS makes each message take longer to send. When 
 link is trapped at a low MCS, messages miss their deadlines and the control loop
 fails. The attacker does not need to block the link. It only needs to push the MCS
 down and keep it there. This is cheaper and quieter than broadband jamming, which must
-transmit all the time and is easy to detect. We measure the attacker's cost as its duty
+transmit all the time and is easy to detect~\cite{pelechrinis2011jammers}. We measure the attacker's cost as its duty
 cycle: the fraction of time it actually transmits. A broadband jammer has a duty cycle
 of one; a good reactive jammer has a much smaller one.
 
 \section{Hypotheses and Methods}
 \label{sec:methods}
+
+\subsection{Threat model}
+\label{sec:threat}
+We state who the attacker is and what it may do, because the attack is built around
+these limits, not around breaking them.
+
+\textbf{Goal.} Deny availability of an industrial 5G link by trapping it at a low MCS,
+so control messages miss their deadlines, while spending as little on-air time as
+possible to stay cheap and hard to detect.
+
+\textbf{What the attacker can do.} It is an outside party on the open air interface with
+a jammer: a radio that can emit short bursts of interference on the victim's channel.
+Reactive, sense-then-jam attacks like this run on commodity software-defined
+radios~\cite{wilhelm2011reactive}. The attacker can also tell when the victim is using a
+high MCS. In 5G the scheduling decision,
+including the MCS, is carried in Downlink Control Information (DCI). The DCI is
+\emph{scrambled} with the victim's identifier but is \emph{not} encrypted or
+integrity-protected, so a passive receiver can decode it and read the MCS. This is not
+hypothetical: open-source control-channel sniffers recover per-user DCI over the air on
+commodity software-defined radios: in real time for LTE
+(FALCON~\cite{falkenberg2019falcon}), and from live 5G NR networks
+(5GSniffer~\cite{ludant2023sniffing}). The MCS and resource allocation are part of the DCI
+those tools decode, so the information our jammer needs is obtainable in practice.
+Obtaining it has two phases: \emph{locking} onto a specific victim's RNTI takes seconds of
+exposure~\cite{ludant2023sniffing}, but once locked, each slot's MCS is read within about
+one slot (FALCON does this in real time for LTE~\cite{falkenberg2019falcon}).
+
+\textbf{What the attacker cannot do.} It cannot forge or inject feedback. The CQI and
+HARQ ACK/NACK messages are scrambled, so the attacker cannot simply send a fake NACK to
+push the MCS down. This is the key constraint: the attack must make the victim's own
+device send a \emph{genuine} NACK, by corrupting a real block with interference. It works
+one layer below the protocol, on the radio, so it never needs to read or write any
+scrambled feedback message. The attacker also does not compromise the endpoints or have
+physical access; those are out of scope.
+
+\textbf{Idealizations in this study.} We assume the attacker has already locked onto the
+victim and give the jammer the victim's MCS directly from the simulator, modelling only
+the per-slot decode latency as an adjustable reaction delay; we do not model the
+one-time, seconds-scale lock-on. This is an upper-bound (best-case) attacker. We make this and the
+other simplifications explicit in Section~\ref{sec:validity}.
 
 \subsection{Hypotheses}
 We test three hypotheses.
@@ -196,7 +250,11 @@ a broadband jammer at a much lower duty cycle.
 
 \subsection{Simulator and scenario}
 We use ns-3.47, an open-source discrete-event network simulator, with its 5G New Radio
-(NR) module, called 5G-LENA, version~4.2. The scenario has two cells
+(NR) module, called 5G-LENA, version~4.2~\cite{patriciello2019e2e}. Its physical-layer
+abstraction maps SINR to block error rate using EESM curves calibrated against a
+link-level simulator~\cite{lagen2020abstraction}, so co-channel interference produces
+graded, measured errors rather than an all-or-nothing reception gate. The scenario has
+two cells
 (Fig.~\ref{fig:topo}). Cell~0 is the victim gNB and serves the victim UE at 20\,m.
 Cell~1 is the interferer gNB and serves a second UE placed on top of the victim UE, so
 its beam lands on the victim. Both cells share one 20\,MHz band at 3.5\,GHz. We use an
@@ -206,22 +264,37 @@ interferer power.
 
 \begin{figure}[t]\centering
 \begin{tikzpicture}[>=Latex,font=\footnotesize,
- dev/.style={draw,rounded corners,align=center,minimum height=8mm,minimum width=20mm},
- ctl/.style={draw,rounded corners,fill=red!8,align=center,minimum height=8mm,minimum width=24mm}]
- \node[dev] (g0) at (0,0) {gNB0\\(victim cell)};
- \node[dev] (uv) at (4.2,0) {victim UE};
- \node[dev] (g1) at (0,-2) {gNB1\\(interferer)};
- \node[dev] (uj) at (4.2,-1.4) {interferer UE\\(on victim)};
- \draw[->,very thick] (g0) -- node[above]{serves} (uv);
- \draw[->,very thick] (g1) -- node[below,pos=0.55]{serves} (uj);
- \draw[->,red,dashed,thick] (g1) to[bend left=12] node[pos=0.6,right]{interference on victim} (uv);
- \node[ctl] (c) at (0,-3.4) {reactive controller};
- \draw[->] (uv) to[bend right=20] node[below,pos=0.35]{reads victim MCS} (c);
- \draw[->,red] (c) -- node[left]{toggles power} (g1);
+ gnb/.style={draw,rounded corners,align=center,minimum height=9mm,minimum width=22mm},
+ ue/.style={draw,rounded corners,align=center,minimum height=7mm,minimum width=20mm},
+ ctl/.style={draw,rounded corners,fill=red!8,align=center,minimum height=8mm,minimum width=34mm}]
+ % left: two co-channel cells
+ \node[gnb] (g0) at (0,1.6)  {gNB0\\victim cell};
+ \node[gnb] (g1) at (0,-1.6) {gNB1\\interferer cell};
+ % right: the two UEs sit at the same place
+ \node[ue] (uv) at (6.6,1.1)  {victim UE};
+ \node[ue] (uj) at (6.6,0.0)  {interferer UE};
+ \begin{scope}[on background layer]
+   \node[draw,dashed,rounded corners,fit=(uv)(uj),inner sep=3mm] (loc) {};
+ \end{scope}
+ \node[font=\scriptsize,align=center] at (6.6,-0.95) {same location};
+ % serving links
+ \draw[->,very thick] (g0) -- node[above,sloped]{serves victim} (uv);
+ \draw[->,very thick,red] (g1) -- node[below,sloped,pos=0.45]{serves interferer UE} (uj);
+ % because the interferer UE is on the victim, gNB1's signal IS the interference
+ \draw[->,red,dashed,thick] (uj) -- node[right]{interference} (uv);
+ % shared-channel annotation between the two cells
+ \node[font=\scriptsize,align=center,gray] at (0,0) {same 20\,MHz\\band @ 3.5\,GHz};
+ % reactive controller drives gNB1 from the victim's MCS
+ \node[ctl] (c) at (3.3,-3.4) {reactive controller};
+ \draw[->] (uv.south) to[out=-90,in=0] node[pos=0.7,above]{reads victim MCS} (c.east);
+ \draw[->,red] (c.west) to[out=180,in=-90] node[pos=0.4,below left]{toggles power} (g1.south);
 \end{tikzpicture}
-\caption{Scenario. The interferer cell serves a UE co-located with the victim, so its
-energy lands on the victim. The reactive controller reads the victim's MCS and toggles
-the interferer's transmit power.}
+\caption{How we realize the attacker of Fig.~\ref{fig:loop} in the simulator. The jammer
+is built as a second cell (gNB1) on the \emph{same} 20\,MHz channel as the victim cell
+(gNB0). gNB1 serves its own UE, which we place at the victim's location, so gNB1's signal
+adds as interference on the victim. The reactive controller reads the victim's MCS and
+switches gNB1's transmit power on and off. Compared with Fig.~\ref{fig:loop}, which shows
+the mechanism, this shows the concrete radio setup that produces it.}
 \label{fig:topo}\end{figure}
 
 \subsection{OLLA loop}
@@ -231,7 +304,7 @@ little on each failure and up a little on each success, so the failure rate sett
 target. Each UE keeps an offset $\Delta$ in MCS-index units. On a DL NACK we set $\Delta \leftarrow \max(\Delta_{\min},
 \Delta - s)$. On a DL ACK we set $\Delta \leftarrow \min(\Delta_{\max}, \Delta +
 s\,B/(1-B))$, for step $s$ and target BLER $B$. We update $\Delta$ from freshly
-received HARQ feedback only, so a NACK awaiting retransmission is not counted twice. We
+received HARQ feedback only, so we never count a NACK awaiting retransmission twice. We
 store the pure CQI-derived MCS as a base and re-derive the effective MCS,
 $\mathrm{clamp}(\mathrm{round}(\mathrm{base}+\Delta),0,\mathrm{MCS}_{\max})$, at every
 DL slot. This makes the offset act at HARQ speed, not only when a new CQI arrives. The
@@ -244,9 +317,10 @@ The reactive jammer reads the victim's commanded DL MCS from the per-block trace
 controls the interferer power. While the observed MCS is at or above a threshold, it
 sets the interferer to high power (jam). Below the threshold, it sets it to low power
 (silent). It runs on a 100\,$\mu$s tick and reports its duty cycle (the fraction of
-ticks spent jamming), which we use as the on-air cost. The Downlink Control Information
-(DCI), the message that carries the scheduling decision, is not integrity-protected,
-so reading the MCS is a realistic attacker capability. We use a threshold of 10.
+ticks spent jamming), which we use as the on-air cost. Reading the victim's MCS is a
+realistic capability because the DCI is unprotected (Section~\ref{sec:threat}); here we
+read it from the trace and discuss that idealization in Section~\ref{sec:validity}. We
+use a threshold of 10.
 
 \subsection{Traffic, plant, and metrics}
 For link-adaptation measurements the victim runs saturating DL traffic (the link always
@@ -401,9 +475,9 @@ jammer duty (Table~\ref{tab:r5a}). Across every one of the nine tunings the vict
 trapped between MCS~8.2 and~9.3, far below the OLLA-off mean of 14.9, and the jammer duty
 stays between 0.14 and 0.38, always below the OLLA-off cost of 0.53. The downgrade is
 therefore a property of the outer loop itself, not of the $s=0.1$, $B=0.1$ point used
-elsewhere. The tuning shifts the operating point in the expected direction --- a higher
-target BLER tolerates more failures, so the jammer must fire more often (higher duty) ---
-but never removes the trap.
+elsewhere. The tuning shifts the operating point in the expected direction: a higher
+target BLER tolerates more failures, so the jammer must fire more often (higher duty). It
+never removes the trap.
 
 \begin{table}[t]\centering
 \caption{R5: trapped MCS and jammer duty vs.\ OLLA tuning (reactive, saturating, LOS,
@@ -466,9 +540,11 @@ rate: the tank overflows only if the valve stays open long enough. So the same 9
 per-packet failure can produce very different fault counts, depending on how the misses
 cluster in time. At some delays the jammer fires through the victim's recovery windows,
 so misses become contiguous and the actuator runs open for long stretches. This is a feedback resonance
-between the jammer, the link-adaptation loop, and the control loop. It means an
-attacker that can tune its reaction delay can raise physical damage at the same on-air
-cost. The resonance is not an artifact of the OLLA tuning: it keeps the same shape across
+between the jammer, the link-adaptation loop, and the control loop. The underlying
+asymmetry is that the link recovers to a high MCS more slowly than the jammer pushes it
+down. Smart jamming exploits the same asymmetry against Wi-Fi rate
+adaptation~\cite{thapa2011rate}. So an attacker that tunes its reaction delay can raise
+physical damage at the same on-air cost. The resonance is not an artifact of the OLLA tuning: it keeps the same shape across
 OLLA step sizes (R5, Section~\ref{sec:r5}). It deserves separate study.
 
 \begin{figure}[t]\centering
@@ -478,11 +554,10 @@ OLLA step sizes (R5, Section~\ref{sec:r5}). It deserves separate study.
 is non-monotonic in the delay.}
 \label{fig:resonance}\end{figure}
 
-\textbf{Channel condition.} The efficiency figure is LOS-conditioned and the random
-channel makes the attack bimodal (R4, Section~\ref{sec:r4}). The point we stress in the
-analysis is that this variance lives entirely on the jammer-to-victim path: the victim's
-own link and the baseline are unaffected, and broadband jamming is weakened by the same
-fades, so the LOS condition does not favor our attack.
+\textbf{Channel condition.} The efficiency figure is LOS-conditioned, and on the random
+channel the attack is bimodal (R4, Section~\ref{sec:r4}). The variance sits on the
+jammer-to-victim path, not the victim's own link, so the LOS condition does not favor our
+attack.
 
 \subsection{Threats to validity}
 \label{sec:validity}
@@ -497,18 +572,35 @@ noise. Its power and duty cycle are a cell's, not a real jammer's, and the exact
 probability that one pulse fails one high-MCS block depends on a real jammer's waveform
 and timing, which this model does not capture. Direction of bias: structured, perfectly
 co-channel interference is favorable to the attacker, so a real jammer may need more
-energy (higher duty) for the same effect. The atomic assumption --- ``a short pulse
-fails a high-MCS block'' --- is the one we flag for link-level checking
+energy (higher duty) for the same effect. The atomic assumption (a short pulse fails a
+high-MCS block) is the one we flag for link-level checking
 (Section~\ref{sec:future}).
 
-\textbf{The attacker reads the MCS almost perfectly.} The controller reads the victim's
-commanded MCS from the scheduling trace and reacts on a 100\,$\mu$s tick. The scheduling
-message (DCI) is not integrity-protected, so reading it is possible in principle, but
-blind-decoding another cell's DCI for a known victim in real time is far harder than our
-oracle. We treat this as an \emph{upper-bound attacker}. Our sensing-delay sweep shows
-the mechanism survives a stale view, but a realistic attacker that misses observations
-would raise its duty cycle. Direction of bias: favorable to the attacker; the mechanism
-(NACK-to-MCS coupling) is unchanged, only the efficiency figure would worsen.
+\textbf{The attacker reads the MCS through an oracle, not by decoding the DCI.} The
+controller reads the victim's commanded MCS straight from the simulator trace and reacts
+on a 100\,$\mu$s tick. In reality the MCS travels in the Downlink Control Information
+(DCI), whose CRC is scrambled with the victim's identifier (RNTI) but is not encrypted or
+integrity-protected. Reading it is therefore not just possible in principle but
+demonstrated: real-time over-the-air DCI sniffers exist for LTE~\cite{falkenberg2019falcon}
+and 5G NR~\cite{ludant2023sniffing}. What we do \emph{not} model is the decode itself; we
+assume it succeeds and hand the jammer the value, with an optional reaction delay. Two
+real-world costs are thus abstracted away. First is \emph{acquisition}: a 5G NR sniffer
+must find the victim's RNTI and the PDCCH scrambling identity, which are configured over
+encrypted signalling, so it blind-searches for them~\cite{ludant2023sniffing}. This is a
+one-time, seconds-scale lock-on; the 5GSniffer experiments need seconds of exposure to
+identify an RNTI. We assume the victim is already locked. Second is
+\emph{per-decision latency}: once locked, the sniffer must read each slot's MCS within
+about one transmission interval (roughly 0.5\,ms at our numerology; FALCON sustains this
+for LTE's 1\,ms subframe~\cite{falkenberg2019falcon}). This staleness is what our
+reaction-delay sweep covers, and the per-packet attack stays effective across it
+(Section~\ref{sec:r5}), so a real decoder's latency sits inside the range we tested. One
+caveat: the 5GSniffer evaluation decodes offline, not in real time, so the real-time
+figure rests on FALCON and the one-interval bound, not on a measured NR number. We
+therefore treat this as an \emph{upper-bound attacker}. This is a separate claim
+from the integrity argument: the attack never forges feedback
+(Section~\ref{sec:threat}); it only \emph{reads} unprotected control info to time its
+pulses. Direction of bias: favorable to the attacker; the mechanism (NACK-to-MCS
+coupling) is unchanged, only the efficiency figure would worsen.
 
 \textbf{We exploit an OLLA loop we added ourselves.} 5G-LENA has no OLLA, so we ported a
 standard one. Real gNBs run OLLA, so this is faithful in kind, but the attack's
@@ -533,7 +625,7 @@ MCS fell from about 28 to about 9, and only when OLLA was on. This existence pro
 the central result, and it survives the OLLA tuning. On a line-of-sight path the attack
 reached the same URLLC deadline-failure rate as broadband jamming at about one quarter of
 the on-air time; we report this efficiency as a best case, because under a realistic
-random channel the attack is bimodal --- cheap and effective when the jammer can reach
+random channel the attack is bimodal: cheap and effective when the jammer can reach
 the victim, defeated when it cannot. The attack is real in this model, it depends on
 OLLA, and its cost depends on the attacker's path to the victim.
 
@@ -553,9 +645,9 @@ pulse covering only part of the slot's symbols (the reactive attacker). The figu
 family of BLER-vs-SIR curves, one per MCS, for each interference shape. It answers the
 quantitative question our model cannot: how much energy, and over how few symbols, a
 pulse needs to push a given high MCS past its decoding cliff. If the pulse curves sit
-close to the continuous-noise curves at equal energy, the attack's efficiency claim is
-confirmed at the physical layer; if they sit well above, the system-level duty cycles
-are optimistic and should be rescaled. This converts the weakest assumption
+close to the continuous-noise curves at equal energy, the physical layer confirms the
+efficiency claim; if they sit well above, the duty cycles are too optimistic and we
+should rescale them. This turns the weakest assumption
 (Section~\ref{sec:validity}) into a measured input.
 
 \textbf{Defenses.} We did not test defenses. Three are worth measuring. An MCS floor for the URLLC slice
@@ -563,14 +655,14 @@ would cap the downgrade, at some cost to spectral efficiency. OLLA hardening, su
 slower recovery or a bounded offset, would slow the trap. An anomaly detector could
 flag NACK spikes that do not match the measured interference floor, or a fast MCS
 collapse; the attack's low duty cycle and the feedback resonance are useful detection
-signals. Beyond defenses, the attack should be tested over more geometries and channel
-models, validated in a shielded lab with software-defined radios (SDRs), and coupled to
-a higher-fidelity physical process.
+signals. Beyond defenses, future work should test the attack over more geometries and
+channels, validate it in a shielded lab with software-defined radios (SDRs), and couple
+it to a higher-fidelity physical process.
 
 \section*{Acknowledgments}
 [Acknowledgments placeholder.]
 
-\begin{thebibliography}{1}
+\begin{thebibliography}{10}
 \bibitem{patriciello2019e2e}
 N.~Patriciello, S.~Lagen, B.~Bojovic, and L.~Giupponi,
 ``An E2E simulator for 5G NR networks,''
@@ -592,6 +684,46 @@ S.~Lenz, S.~Michaelides, M.~Rickert, J.~Holtwick, and M.~Henze,
 ``Security Implications of 5G Communication in Industrial Systems,''
 in \emph{Proc.\ 11th ACM Cyber-Physical System Security Workshop (CPSS '26)},
 Bangalore, India, 2026.
+
+\bibitem{ludant2023sniffing}
+N.~Ludant, P.~Robyns, and G.~Noubir,
+``From 5G sniffing to harvesting leakages of privacy-preserving messengers,''
+in \emph{Proc.\ IEEE Symp.\ on Security and Privacy (S\&P)}, 2023.
+
+\bibitem{falkenberg2019falcon}
+R.~Falkenberg and C.~Wietfeld,
+``FALCON: An accurate real-time monitor for client-based mobile network data analytics,''
+in \emph{Proc.\ IEEE Global Communications Conf.\ (GLOBECOM)}, 2019.
+
+\bibitem{thapa2011rate}
+B.~Thapa, G.~Noubir, R.~Rajaraman, and B.~Sheng,
+``On the robustness of IEEE 802.11 rate adaptation algorithms against smart jamming,''
+in \emph{Proc.\ 4th ACM Conf.\ on Wireless Network Security (WiSec)}, 2011.
+
+\bibitem{wilhelm2011reactive}
+M.~Wilhelm, I.~Martinovic, J.~B.~Schmitt, and V.~Lenders,
+``Short paper: Reactive jamming in wireless networks: how realistic is the threat?,''
+in \emph{Proc.\ 4th ACM Conf.\ on Wireless Network Security (WiSec)}, 2011.
+
+\bibitem{pelechrinis2011jammers}
+K.~Pelechrinis, M.~Iliofotou, and S.~V.~Krishnamurthy,
+``Denial of service attacks in wireless networks: The case of jammers,''
+\emph{IEEE Commun.\ Surveys Tuts.}, vol.~13, no.~2, pp.~245--257, 2011.
+
+\bibitem{sampath1997olla}
+A.~Sampath, P.~S.~Kumar, and J.~M.~Holtzman,
+``On setting reverse link target SIR in a CDMA system,''
+in \emph{Proc.\ IEEE 47th Vehicular Technology Conf.\ (VTC)}, 1997, pp.~929--933.
+
+\bibitem{jover2019security}
+R.~P.~Jover and V.~Marojevic,
+``Security and protocol exploit analysis of the 5G specifications,''
+\emph{IEEE Access}, vol.~7, pp.~24956--24963, 2019.
+
+\bibitem{lagen2020abstraction}
+S.~Lagen, K.~Wanuga, H.~Elkotby, S.~Goyal, N.~Patriciello, and L.~Giupponi,
+``New radio physical layer abstraction for system-level simulations of 5G networks,''
+in \emph{Proc.\ IEEE Int.\ Conf.\ on Communications (ICC)}, 2020.
 \end{thebibliography}
 
 \end{document}
