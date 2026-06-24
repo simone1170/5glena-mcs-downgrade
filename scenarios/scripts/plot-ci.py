@@ -71,17 +71,16 @@ for sc in ORDER:
     if sc not in agg:
         continue
     (dm, dci, _), (fm, fci, _), (sm, sci, _) = agg[sc]
-    ax.errorbar(dm, fm, xerr=dci, yerr=fci, fmt="o", ms=11, capsize=4,
+    ax.errorbar(dm*100, fm, xerr=dci*100, yerr=fci, fmt="o", ms=11, capsize=4,
                 color=COLORS[sc], ecolor="gray", elinewidth=1, mec="black",
                 label=f"{LABELS[sc]} ({sm:.0f} spills)", zorder=3)
-    ax.annotate(LABELS[sc], (dm, fm), xytext=(dm + 0.02, fm - 4), fontsize=8.5)
 
-ax.set_xlabel("Attacker cost: jammer duty cycle (on-time fraction)")
+ax.set_xlabel("Attacker cost: on-air time (% of time)")
 ax.set_ylabel("URLLC deadline failure (% of control packets)")
 ax.set_title("Reactive vs broadband jamming on industrial 5G (5G-LENA, LOS)\n"
              "mean +/- 95% CI over 5 seeds; legend shows mean plant spills / 2 s")
 ax.grid(True, alpha=0.3)
-ax.set_xlim(-0.05, 1.1)
+ax.set_xlim(-5, 110)
 ax.set_ylim(-5, 108)
 ax.legend(loc="center right", fontsize=8)
 fig.tight_layout()

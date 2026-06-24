@@ -47,20 +47,20 @@ print(f"  failed% {sum(r[2] for r in b)/len(b):.1f}  "
 
 # figure: per-seed duty (reactive) colored by success/failure, with broadband ref
 fig, ax = plt.subplots(figsize=(8,5))
-sd=[r[0] for r in succ]; sy=[r[1] for r in succ]
-fd=[r[0] for r in fail]; fy=[r[1] for r in fail]
+sd=[r[0] for r in succ]; sy=[r[1]*100 for r in succ]
+fd=[r[0] for r in fail]; fy=[r[1]*100 for r in fail]
 ax.scatter(sd, sy, c="tab:red", s=80, zorder=3,
            label=f"reactive: attack succeeds ({len(succ)} seeds)")
 ax.scatter(fd, fy, c="tab:gray", s=80, marker="x", zorder=3,
            label=f"reactive: attack fails, jammer link NLOS ({len(fail)} seeds)")
-ax.axhline(1.0, color="tab:blue", ls="--", lw=1.2, label="broadband (duty=1.0 always)")
-ax.axhline(0.6, color="black", ls=":", lw=0.8, alpha=0.6)
+ax.axhline(100, color="tab:blue", ls="--", lw=1.2, label="broadband (on-air time=100%)")
+ax.axhline(60, color="black", ls=":", lw=0.8, alpha=0.6)
 ax.set_xlabel("Channel realization (RNG seed)")
-ax.set_ylabel("Reactive jammer duty cycle")
-ax.set_ylim(-0.05, 1.1)
+ax.set_ylabel("Reactive jammer on-air time (%)")
+ax.set_ylim(-5, 110)
 ax.set_title("Random-channel regime (5G-LENA, Default 3GPP LOS/NLOS)\n"
-             "the reactive attack is bimodal: it succeeds at low duty on LOS-ish jammer\n"
-             "links and collapses (duty->1) when the jammer link draws an NLOS fade")
+             "the reactive attack is bimodal: it succeeds at low on-air time on LOS-ish jammer\n"
+             "links and collapses (on-air time->100%) when the jammer link draws an NLOS fade")
 ax.legend(loc="center right", fontsize=8)
 ax.grid(True, alpha=0.3)
 fig.tight_layout()
