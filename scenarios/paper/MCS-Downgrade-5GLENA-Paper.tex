@@ -428,8 +428,11 @@ arrive after the deadline. This counts both lost and late packets and does not
 undercount packets still queued at the end of the run. We report the jammer's on-air time
 as the attacker cost. We run on the line-of-sight (LOS) channel to isolate the
 mechanism from the random line-of-sight / non-line-of-sight (NLOS) draw. The channel is
-random, so we repeat each case over several random seeds and report the spread as a
-95\% confidence interval (CI), computed with the Student-$t$ distribution.
+random, so we repeat each impact case (R3, R5) over 10 random seeds, and the
+random-channel study (R4) over 12, reporting the spread as a 95\% confidence interval
+(CI) computed with the Student-$t$ distribution. The link-adaptation checks of R1--R2 are
+single representative runs: their quantities (received-block count, mean SINR/MCS, corrupt
+fraction under a fixed interferer) are essentially seed-invariant.
 
 \subsubsection{Objectives}
 We frame the evaluation around three claims to test.
@@ -519,44 +522,44 @@ not.}
 We compare the reactive jammer (50\,dBm when on) against a broadband jammer under the
 128-byte URLLC traffic (Table~\ref{tab:r3}, Fig.~\ref{fig:tradeoff}). At a realistic
 payload the broadband baseline splits: a 40\,dBm broadband jammer degrades the link but
-the small packets still mostly make their deadline ($22.2\%$ failure at full on-air time),
+the small packets still mostly make their deadline ($21.6\%$ failure at full on-air time),
 so only the strong 50\,dBm broadband jammer breaks the link outright ($100\%$ failure at
 $100\%$ on-air time). The reactive jammer, at a \emph{realistic} decode delay of
-$0.5$\,ms, reaches $98.1\%$ deadline failure at only $19.6\%$ on-air time --- matching the
+$0.5$\,ms, reaches $98.4\%$ deadline failure at only $20.0\%$ on-air time --- matching the
 strong broadband jammer at about one fifth of the on-air time, and at equal peak power
 (50\,dBm) on radiated energy too (energy is power times time). The result holds at
-$\delta=1.0$\,ms ($97.5\%$ at $21.9\%$). This confirms H3.
+$\delta=1.0$\,ms ($98.7\%$ at $23.2\%$). This confirms H3.
 
 Two features of Table~\ref{tab:r3} are worth drawing out. First, the \emph{idealized}
 zero-delay oracle is the \emph{weakest} reactive attacker, not the strongest: at
-$\delta=0$ it reaches only $42.8\%$ failure. Reacting within the same slot lets the victim
+$\delta=0$ it reaches only $45.4\%$ failure. Reacting within the same slot lets the victim
 recover its MCS in the gaps between pulses, whereas a realistic decode lag clusters the
 misses (the resonance of R5). The realistic attacker is therefore more dangerous than the
 oracle, so our best-case framing of the \emph{delay} is conservative, not optimistic.
 Second, the effect still needs OLLA: with OLLA off, the reactive jammer reaches the same
-failure rate only at $84.4\%$ on-air time, so OLLA makes the attack about $4.3\times$
+failure rate only at $86.4\%$ on-air time, so OLLA makes the attack about $4.3\times$
 cheaper. The confidence intervals on on-air time between the realistic reactive attacker
 and every $100\%$-on-air baseline do not overlap.
 
 \begin{table}[t]\centering
-\caption{R3: URLLC impact vs.\ attacker cost (128\,B, LOS, mean $\pm$ 95\% CI over 5 seeds).
+\caption{R3: URLLC impact vs.\ attacker cost (128\,B, LOS, mean $\pm$ 95\% CI over 10 seeds).
 $\delta$ is the attacker's decode/reaction delay.}
 \label{tab:r3}
 \begin{tabular}{lrr}\toprule
 Scenario & on-air \% & failed\% \\\midrule
 baseline & 0 & 0.2 \\
-broadband 40\,dBm & 100 & $22.2\pm6.0$ \\
+broadband 40\,dBm & 100 & $21.6\pm3.1$ \\
 broadband 50\,dBm & 100 & $100\pm0$ \\
-reactive, OLLA on, $\delta{=}0$ (oracle) & $24.2\pm9.6$ & $42.8\pm12.0$ \\
-reactive, OLLA on, $\delta{=}0.5$\,ms & $\mathbf{19.6\pm1.6}$ & $\mathbf{98.1\pm1.9}$ \\
-reactive, OLLA on, $\delta{=}1.0$\,ms & $21.9\pm5.3$ & $97.5\pm3.4$ \\
-reactive, OLLA off, $\delta{=}0.5$\,ms & $84.4\pm9.2$ & $99.9$ \\\bottomrule
+reactive, OLLA on, $\delta{=}0$ (oracle) & $26.8\pm5.0$ & $45.4\pm6.4$ \\
+reactive, OLLA on, $\delta{=}0.5$\,ms & $\mathbf{20.0\pm0.7}$ & $\mathbf{98.4\pm1.0}$ \\
+reactive, OLLA on, $\delta{=}1.0$\,ms & $23.2\pm2.5$ & $98.7\pm1.6$ \\
+reactive, OLLA off, $\delta{=}0.5$\,ms & $86.4\pm4.0$ & $99.9$ \\\bottomrule
 \end{tabular}\end{table}
 
 \begin{figure}[t]\centering
 \includegraphics[width=\columnwidth]{paper-figs/tradeoff-ci-5glena.png}
 \caption{R3: URLLC deadline failure vs.\ jammer on-air time (128\,B, LOS, 95\% CI over
-seeds). At a realistic decode delay the reactive jammer reaches the strong broadband
+10 seeds). At a realistic decode delay the reactive jammer reaches the strong broadband
 jammer's failure rate at about one fifth of the on-air time; the zero-delay oracle is
 weaker.}
 \label{fig:tradeoff}\end{figure}
@@ -593,10 +596,10 @@ the jammer link draws an NLOS fade.}
 \subsubsection*{R5: The downgrade is robust to the OLLA tuning}
 The attack exploits an OLLA loop we added, so we test whether the result depends on how
 that loop is tuned. We sweep the OLLA step $s$ and target BLER $B$ over the reactive
-attack (saturating traffic, LOS, three seeds each) and read the trapped MCS and the
+attack (saturating traffic, LOS, 10 seeds each) and read the trapped MCS and the
 jammer's on-air time (Table~\ref{tab:r5a}). Across every one of the nine tunings the victim is
-trapped between MCS~8.2 and~9.3, far below the OLLA-off mean of 14.9, and the jammer's on-air time
-stays between 14\% and 38\%, always below the OLLA-off 53\%. The downgrade is
+trapped between MCS~8.1 and~9.6, far below the OLLA-off mean of 15.1, and the jammer's on-air time
+stays between 14\% and 42\%, always below the OLLA-off 54\%. The downgrade is
 therefore a property of the outer loop itself, not of the $s=0.1$, $B=0.1$ point used
 elsewhere. The tuning shifts the operating point in the expected direction: a higher
 target BLER tolerates more failures, so the jammer must fire more often (more on-air
@@ -604,20 +607,20 @@ time). It never removes the trap.
 
 \begin{table}[t]\centering
 \caption{R5: trapped MCS and jammer on-air time vs.\ OLLA tuning (reactive, saturating,
-LOS, mean over seeds). The trap holds for every tuning.}
+LOS, mean over 10 seeds). The trap holds for every tuning.}
 \label{tab:r5a}
 \begin{tabular}{llrr}\toprule
 OLLA step $s$ & target $B$ & mean MCS & on-air \% \\\midrule
-\multicolumn{2}{l}{OLLA off (reference)} & 14.9 & 53 \\
-0.05 & 0.05 & 9.3 & 20 \\
-0.05 & 0.10 & 9.2 & 25 \\
-0.05 & 0.20 & 9.3 & 38 \\
+\multicolumn{2}{l}{OLLA off (reference)} & 15.1 & 54 \\
+0.05 & 0.05 & 9.3 & 21 \\
+0.05 & 0.10 & 9.2 & 27 \\
+0.05 & 0.20 & 9.6 & 42 \\
 0.10 & 0.05 & 8.8 & 14 \\
 0.10 & 0.10 & 8.8 & 20 \\
-0.10 & 0.20 & 8.7 & 31 \\
+0.10 & 0.20 & 8.7 & 33 \\
 0.20 & 0.05 & 8.6 & 14 \\
-0.20 & 0.10 & 8.4 & 23 \\
-0.20 & 0.20 & 8.2 & 38 \\\bottomrule
+0.20 & 0.10 & 8.4 & 24 \\
+0.20 & 0.20 & 8.1 & 37 \\\bottomrule
 \end{tabular}\end{table}
 
 We also re-run the sensing-delay sweep of the plant under three OLLA steps to test
@@ -626,24 +629,24 @@ not. For every step the plant fault count is non-monotonic in the delay with the
 shape: low near zero delay, high at 0.5--1.0\,ms, low again near 1.5\,ms, and high again
 at 2.0\,ms. At the realistic 128-byte payload the per-packet deadline-failure rate now
 follows the same shape rather than sitting at a ceiling (R3, Fig.~\ref{fig:resonance}):
-it rises from $\approx$42\% at $\delta=0$ to $\approx$97\% at $\delta=0.5$--$1.0$\,ms,
-dips to $\approx$31\% at $\delta=1.5$\,ms, and recovers at $\delta=2.0$\,ms, tracking the
-fault count. The resonance is therefore a structural property of the jammer--HARQ--plant
-loop, visible in both the link-level and the physical metric, and independent of the OLLA
-step.
+it rises from $\approx$45\% at $\delta=0$ to $\approx$98\% at $\delta=0.5$--$1.0$\,ms,
+dips to $\approx$31\% at $\delta=1.5$\,ms, and recovers to $\approx$83\% at $\delta=2.0$\,ms,
+tracking the fault count. The resonance is therefore a structural property of the
+jammer--HARQ--plant loop, visible in both the link-level and the physical metric, and
+independent of the OLLA step.
 
 \begin{table}[t]\centering
 \caption{R5: mean plant faults vs.\ sensing delay for three OLLA steps (reactive,
-128\,B URLLC+plant, LOS, mean over 3 seeds). Faults are non-monotonic with the same shape
+128\,B URLLC+plant, LOS, mean over 10 seeds). Faults are non-monotonic with the same shape
 at every step; per-packet failure (R3) follows the same shape.}
 \label{tab:r5b}
 \begin{tabular}{rrrr}\toprule
 delay (ms) & $s{=}0.05$ & $s{=}0.10$ & $s{=}0.20$ \\\midrule
-0.0 & 76  & 48  & 35  \\
-0.5 & 128 & 148 & 168 \\
-1.0 & 170 & 164 & 170 \\
-1.5 & 28  & 19  & 13  \\
-2.0 & 140 & 138 & 170 \\\bottomrule
+0.0 & 83  & 49  & 33  \\
+0.5 & 147 & 159 & 168 \\
+1.0 & 170 & 168 & 170 \\
+1.5 & 21  & 14  & 10  \\
+2.0 & 145 & 142 & 170 \\\bottomrule
 \end{tabular}\end{table}
 
 \subsubsection*{Discussion}
@@ -678,7 +681,7 @@ step sizes (R5). It deserves separate study.
 \begin{figure}[t]\centering
 \includegraphics[width=\columnwidth]{paper-figs/delay-resonance-5glena.png}
 \caption{Plant faults and per-packet failure vs.\ the attacker's sensing delay (128\,B,
-LOS, 95\% CI over seeds). Both metrics are non-monotonic in the delay and track each
+LOS, 95\% CI over 10 seeds). Both metrics are non-monotonic in the delay and track each
 other: the realistic 0.5--1.0\,ms regime is the most damaging, the within-slot oracle
 ($\delta=0$) the least.}
 \label{fig:resonance}\end{figure}
