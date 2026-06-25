@@ -28,7 +28,6 @@ for thr,mk in thr_marks.items():
     gg=g[g.mcsThreshold==thr]
     sc=ax1.scatter(gg.onair,gg.failed,c=gg.jammerHighPowerDbm,cmap="autumn_r",
                    vmin=40,vmax=55,marker=mk,s=60,edgecolors="k",linewidths=0.4,label=f"thr {thr}")
-ax1.plot(front[:,0],front[:,1],"--",color="#333",lw=1,label="Pareto frontier")
 ax1.set_xlabel("attacker on-air time (%)\n(duty-cycle detectability)",fontsize=8)
 ax1.set_ylabel("URLLC failure (%)  (effectiveness)",fontsize=8)
 ax1.set_title("(a) effectiveness vs duty, colour = peak power",fontsize=8)
