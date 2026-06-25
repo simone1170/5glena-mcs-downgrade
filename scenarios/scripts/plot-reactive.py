@@ -76,7 +76,7 @@ for tag, label, color in [
 ax.axhline(THRESHOLD, color="gray", ls="--", lw=1.0, label=f"jammer threshold (MCS {THRESHOLD})")
 ax.set_xlabel("Time (s)")
 ax.set_ylabel("Victim commanded DL MCS")
-ax.set_title("Reactive MCS-downgrade attack in 5G-LENA (RF-emergent): commanded MCS over time")
+ax.set_title("Reactive MCS-downgrade attack in 5G-LENA: commanded MCS over time")
 ax.set_ylim(0, 29)
 ax.grid(True, alpha=0.3)
 ax.legend(loc="upper right")

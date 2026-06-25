@@ -15,8 +15,7 @@
 
 \begin{document}
 
-\title{An RF-Emergent MCS-Downgrade Reactive Jamming Attack on Industrial 5G
-Link Adaptation}
+\title{An MCS-Downgrade Reactive Jamming Attack on Industrial 5G Link Adaptation}
 
 \author{\IEEEauthorblockN{Author Name}
 \IEEEauthorblockA{Affiliation \\
@@ -81,10 +80,10 @@ attack. The idea is not new in wireless generally: smart jamming can trap IEEE~8
 rate adaptation at a low rate, because the link recovers more slowly than it backs
 off~\cite{thapa2011rate}. Whether and how it carries over to 5G is not obvious, because
 5G sets the rate through a different, two-loop mechanism (Section~\ref{sec:system}); that
-is the question we study. Our central claim is that the downgrade is \emph{RF-emergent}:
-it arises from the radio layer itself. Interference corrupts a high-rate block, the
-receiver returns a \emph{genuine} failure report, and the link-adaptation loop lowers the
-rate in response, with no forged or injected feedback anywhere in the chain. We argue
+is the question we study. Our central claim is that the downgrade arises from the radio
+layer itself: interference corrupts a high-rate block, the receiver returns a
+\emph{genuine} failure report, and the link-adaptation loop lowers the rate in response,
+with no forged or injected feedback anywhere in the chain. We argue
 this is a by-design weakness of any 5G link that runs outer-loop link adaptation, and we
 measure its impact on an industrial control loop.
 
@@ -859,7 +858,8 @@ simple bottle-filling analog; its fault count tracks the \emph{clustering} of de
 misses rather than their average rate, so it illustrates physical impact but is not a
 calibrated plant. And our confidence intervals are over a small number of seeds; they
 bound the spread within one geometry, not across deployments. None of these change the
-central claim, which is qualitative: an RF-emergent, OLLA-conditional downgrade exists.
+central claim, which is qualitative: the downgrade emerges from the radio model and is
+conditional on OLLA.
 
 \section{Conclusion}
 We built the MCS-downgrade reactive jamming attack in a higher-fidelity 5G simulator.
