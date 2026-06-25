@@ -137,8 +137,8 @@ that misses its deadline can stall or damage the physical process.
 \textbf{Modulation and coding.} The gNB sends data in units called transport blocks
 (TBs). For each TB it picks a Modulation and Coding Scheme (MCS). The MCS sets how many
 bits the block carries and how much error-correction it adds. A high MCS sends many bits
-in little airtime but needs a clean channel. A low MCS sends fewer bits but survives a
-noisy channel. In 5G the MCS is an index from 0 (lowest rate, most robust) to 28
+in little airtime but needs a low-noise, low-interference channel. A low MCS sends fewer
+bits but survives a noisy or interfered one. In 5G the MCS is an index from 0 (lowest rate, most robust) to 28
 (highest rate), drawn from tables fixed by the standard~\cite{3gpp38214}. Choosing the
 MCS is a trade-off between speed and reliability, and a low MCS means each control message
 takes longer to send.
@@ -246,7 +246,10 @@ down to the already-selected victim's grants. Reading the MCS this way is not
 hypothetical: open-source control-channel sniffers recover per-user DCI over the air on
 commodity software-defined radios, in real time for LTE
 (FALCON~\cite{falkenberg2019falcon}) and from live 5G New Radio (NR) networks
-(5GSniffer~\cite{ludant2023sniffing}). Obtaining the RNTI itself has two phases:
+(5GSniffer~\cite{ludant2023sniffing}). We cite the LTE result because real-time,
+over-the-air DCI decoding is most maturely demonstrated there; NR carries the same
+unprotected, RNTI-scrambled DCI, so this is a matter of engineering maturity, not of
+protocol access. Obtaining the RNTI itself has two phases:
 \emph{locking} onto a specific victim's RNTI takes seconds of
 exposure~\cite{ludant2023sniffing}, a one-time acquisition cost; once locked, each slot's
 MCS is read within about one slot (FALCON does this in real time for
@@ -415,12 +418,19 @@ Below the threshold, it sets it to low power (silent, $-50$\,dBm). It runs on a
 100\,$\mu$s tick and reports its on-air time (the fraction of ticks spent jamming), which
 we use as the attacker cost. Reading the victim's MCS is a realistic capability because
 the DCI is unprotected (Section~\ref{sec:threat}); here we read it from the trace and
-discuss that idealization in Section~\ref{sec:validity}. We use a threshold of 10.
+discuss that idealization in Section~\ref{sec:validity}. We use a threshold of 10, near the
+middle of the 0--28 MCS range: it separates the high-rate blocks worth corrupting --- where
+jamming is selective and cheap --- from already-slow blocks where a pulse would be wasted.
+The value is the attacker's knob, not an industrial constant, and the exact choice is not
+critical: R5 shows the trap holds across OLLA tunings, and the threshold only sets how
+aggressively the jammer fires.
 
 \subsubsection{Traffic, plant, and metrics}
 For link-adaptation measurements the victim runs saturating DL traffic (the link always
 has data to send). For the impact study the victim runs periodic URLLC traffic: one
-128-byte packet every 1\,ms with a 2\,ms deadline. We use a small payload deliberately:
+128-byte packet every 1\,ms with a 2\,ms deadline. These timings are representative of
+fast factory-automation control, whose cycle times and latency budgets sit in the
+low-millisecond range~\cite{michaelides2025secure}. We use a small payload deliberately:
 3GPP industrial URLLC reference traffic is tens to a few hundred bytes per
 message~\cite{michaelides2025secure}, and an oversized payload masks the attack's effect
 by making \emph{every} packet miss its deadline once the MCS is even mildly degraded,
@@ -490,8 +500,8 @@ off & 1597 & 67.5 & 27.9 & 0.0\% \\
 \end{tabular}\end{table}
 
 \subsubsection*{R2: The downgrade emerges from the radio model}
-We first check the OLLA loop (Table~\ref{tab:r2a}). On a clean channel, OLLA on and
-off give the same MCS (27.95) with no corruption, so the loop does not harm a good
+We first check the OLLA loop (Table~\ref{tab:r2a}). On an interference-free channel, OLLA
+on and off give the same MCS (27.95) with no corruption, so the loop does not harm a good
 link. Under constant 40\,dBm interference, OLLA raises the corrupt fraction from 3.8\%
 to 9.3\%, close to the 10\% target ($B=0.1$): the loop reaches its set point. Here OLLA raises
 the MCS, because constant interference also lowers the CQI, so the CQI-based MCS is too
@@ -503,8 +513,8 @@ stays high. Selective jamming gives exactly that.
 \label{tab:r2a}
 \begin{tabular}{llrr}\toprule
 Channel & OLLA & mean MCS & corrupt \\\midrule
-clean & off & 27.95 & 0.0\% \\
-clean & on  & 27.95 & 0.0\% \\
+no interf. & off & 27.95 & 0.0\% \\
+no interf. & on  & 27.95 & 0.0\% \\
 jam 40\,dBm & off & 6.59 & 3.8\% \\
 jam 40\,dBm & on  & 8.62 & 9.3\% \\\bottomrule
 \end{tabular}\end{table}
@@ -662,9 +672,13 @@ at 2.0\,ms. At the realistic 128-byte payload the per-packet deadline-failure ra
 follows the same shape rather than sitting at a ceiling (R3, Fig.~\ref{fig:resonance}):
 it rises from $\approx$45\% at $\delta=0$ to $\approx$98\% at $\delta=0.5$--$1.0$\,ms,
 dips to $\approx$31\% at $\delta=1.5$\,ms, and recovers to $\approx$83\% at $\delta=2.0$\,ms,
-tracking the fault count. The resonance is therefore a structural property of the
-jammer--HARQ--plant loop, visible in both the link-level and the physical metric, and
-independent of the OLLA step.
+tracking the fault count. We further re-run the sweep on the random LOS/NLOS channel over
+100 seeds (Fig.~\ref{fig:resonance}, right): the same low--high--low--high shape persists
+--- low at $\delta=0$ ($\approx$37\% failure), high at $0.5$--$1.0$\,ms ($\approx$77\%), a
+sharp dip at $1.5$\,ms ($\approx$35\%), and a rise at $2.0$\,ms --- at tighter intervals,
+only shifted down in level by the NLOS-fade seeds. The resonance is therefore a structural
+property of the jammer--HARQ--plant loop, visible in both the link-level and the physical
+metric, robust to the channel as well as to the OLLA step --- not a line-of-sight artifact.
 
 \begin{table}[t]\centering
 \caption{R5: mean plant faults vs.\ sensing delay for three OLLA steps (reactive,
@@ -679,6 +693,52 @@ delay (ms) & $s{=}0.05$ & $s{=}0.10$ & $s{=}0.20$ \\\midrule
 1.5 & 21  & 14  & 10  \\
 2.0 & 145 & 142 & 170 \\\bottomrule
 \end{tabular}\end{table}
+
+\subsubsection*{R6: The stealth--effectiveness tradeoff is two-dimensional}
+R3--R5 measured the attacker at a fixed power and threshold. We now give it both levers ---
+the per-pulse power and the MCS threshold, i.e.\ how selective it is --- and sweep them
+jointly over a $4\times4$ grid (jammer power $\in\{40,45,50,55\}$\,dBm, threshold
+$\in\{6,10,14,18\}$), 100 random-channel seeds per cell, to map the full tradeoff between
+damage and detectability (Fig.~\ref{fig:frontier}). Detectability has two axes: the
+\emph{duty cycle} (on-air time), which packet-delivery and energy-over-time detectors key
+on, and the \emph{peak power}, which an instantaneous energy detector keys on.
+
+\begin{figure*}[t]\centering
+\includegraphics[width=\textwidth]{paper-figs/tradeoff-frontier-5glena.png}
+\caption{R6: stealth--effectiveness tradeoff over the jammer-power$\times$MCS-threshold grid
+(128\,B URLLC, random channel, 100 seeds per cell). (a) URLLC failure (effectiveness) vs
+attacker on-air time (duty-cycle detectability), colour = peak power (energy detectability),
+marker = threshold; the Pareto frontier (dashed) lies entirely at the highest power. (b) the
+same cells in the dual-detectability plane (duty $\times$ peak power), colour = failure:
+high damage occupies the high-power band at every duty cycle.}
+\label{fig:frontier}\end{figure*}
+
+Two findings stand out. First, the threshold lever decouples damage from duty: at
+55\,dBm, raising the threshold from 6 to 18 cuts the on-air time from 74\% to 24\% while the
+URLLC failure stays between 77\% and 81\%. A selective, high-power jammer is therefore both
+effective and stealthy \emph{by duty cycle} --- it fires rarely, because each high-power
+pulse drives a deep, slow-to-recover downgrade (the R5 asymmetry). Second, this comes at a
+price on the other axis: the entire efficient (Pareto) frontier sits at the highest power
+(Fig.~\ref{fig:frontier}(a), dashed). No low-power setting reaches the high-damage region
+--- a 40\,dBm jammer tops out near 47\% failure at any threshold --- so effectiveness
+\emph{requires} high peak power. The dual-detectability plane (Fig.~\ref{fig:frontier}(b))
+makes this concrete: high failure occupies the high-power band regardless of duty.
+
+A third detectability axis is total radiated energy (peak power $\times$ on-air time), and
+it coincides with neither of the first two. The duty-cheapest effective setting (55\,dBm,
+threshold~18: 24\% on-air) costs about $6\times$ the radiated energy of the cheapest
+setting in the same damage band (45\,dBm, threshold~18: 38\% on-air, $\approx$73\%
+failure), because the order-of-magnitude power increase swamps the modest duty saving.
+The attacker therefore cannot minimise duty cycle, minimise radiated energy, and maximise
+damage at once --- the three objectives have three different optima.
+
+The defender takeaway sharpens R4 into three axes. The attacker can drive its duty-cycle
+footprint arbitrarily low by being selective, defeating duty- and packet-delivery-based
+detectors (Section~\ref{sec:eval}, ``Why the attack is hard to detect''), but only at high
+peak power and high radiated energy: it cannot be quiet on all three axes while staying
+effective. A defender that monitors any axis the attacker has \emph{not} minimised ---
+instantaneous energy on the victim's resource blocks, or total radiated load --- keeps a
+handle the attack cannot evade.
 
 \subsubsection*{Discussion}
 The results point to one load-bearing mechanism: the path from NACK to OLLA to MCS.
@@ -714,13 +774,15 @@ on-air cost --- and a realistic decode delay does this better than an instantane
 The resonance is not an artifact of the OLLA tuning: it keeps the same shape across OLLA
 step sizes (R5). It deserves separate study.
 
-\begin{figure}[t]\centering
-\includegraphics[width=\columnwidth]{paper-figs/delay-resonance-5glena.png}
+\begin{figure*}[t]\centering
+\includegraphics[width=\textwidth]{paper-figs/delay-resonance-5glena.png}
 \caption{Plant faults and per-packet failure vs.\ the attacker's sensing delay (128\,B,
-LOS, 95\% CI over 10 seeds). Both metrics are non-monotonic in the delay and track each
-other: the realistic 0.5--1.0\,ms regime is the most damaging, the within-slot oracle
-($\delta=0$) the least.}
-\label{fig:resonance}\end{figure}
+95\% CI). Both metrics are non-monotonic in the delay and track each other: the realistic
+0.5--1.0\,ms regime is the most damaging, the within-slot oracle ($\delta=0$) the least.
+The same low--high--low--high shape holds on the line-of-sight channel (left, 10 seeds) and,
+critically, on the random LOS/NLOS channel (right, 100 seeds), so the resonance is a
+structural property of the loop, not a line-of-sight artifact.}
+\label{fig:resonance}\end{figure*}
 
 \textbf{Channel condition.} The efficiency figure is LOS-conditioned, and on the random
 channel the attack is bimodal (R4). The variance sits on the
@@ -735,7 +797,10 @@ and that inconsistency is the giveaway~\cite{xu2005feasibility}. Our jammer inve
 pattern --- it transmits only short pulses, on the victim's own resource blocks, and only
 while the MCS is high, so its on-air time is about a fifth (R3) and the average
 interference floor barely moves; an energy- or RSSI-threshold detector tuned for a
-100\%-duty jammer sees almost nothing. Modern 5G detectors, including O-RAN xApps, instead
+100\%-duty jammer sees almost nothing. There is a catch the attacker cannot escape, which
+R6 quantifies: this low duty cycle is bought with high \emph{peak} power, so an
+\emph{instantaneous} energy detector --- as opposed to an average-load one --- retains a
+handle. Modern 5G detectors, including O-RAN xApps, instead
 learn anomalies in radio key performance indicators such as SINR, RSRP, BLER, and
 MCS~\cite{hachimi2020multistage,pirayesh2022survey}. The downgrade is camouflaged in
 exactly these signals: because OLLA keeps adapting, the BLER settles near its 10\% target
