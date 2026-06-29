@@ -1,3 +1,10 @@
+// Copyright (c) 2026 simone1170 (github.com/simone1170)
+//
+// SPDX-License-Identifier: GPL-2.0-only
+//
+// MCS-downgrade reactive-jamming scenario for ns-3 5G-LENA. Built on the nr
+// module (CTTC, GPL-2.0-only) and ns-3 (nsnam, GPLv2). See scenarios/README.md.
+//
 // Phase 1 (5G-LENA migration): co-channel interferer scenario.
 //
 // Goal of this file: demonstrate the fidelity property SWICS lacked --

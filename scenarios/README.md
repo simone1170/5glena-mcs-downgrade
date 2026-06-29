@@ -1,6 +1,6 @@
 # MCS-downgrade reactive jamming on industrial 5G (5G-LENA)
 
-RF-emergent reproduction of the **MCS-downgrade reactive jamming** attack in
+Reproduction of the **MCS-downgrade reactive jamming** attack in
 ns-3 **5G-LENA** (nr). The downgrade emerges from the real interference ->
 graded SINR (EESM) -> HARQ NACK -> outer-loop link adaptation (OLLA) chain,
 with **no injected effect**.
@@ -20,11 +20,18 @@ with **no injected effect**.
   cost-vs-damage trade-off figures.
 
 ## Build & run
-Requires ns-3.47 with this nr branch in `contrib/nr`.
+Tested on **ns-3.47** with this fork (which already contains the OLLA port) as the
+`nr` module in `contrib/nr`. From an empty directory:
 ```
+# 1. stock ns-3.47
+git clone --branch ns-3.47 https://gitlab.com/nsnam/ns-3-dev.git
+# 2. this fork (OLLA port + scenario) as the nr module
+git clone --branch mcs-downgrade https://github.com/simone1170/5glena-mcs-downgrade.git ns-3-dev/contrib/nr
+# 3. build the scenario
+cd ns-3-dev
 cp contrib/nr/scenarios/mcs-downgrade.cc scratch/
 ./ns3 configure --enable-examples -d optimized && ./ns3 build mcs-downgrade
-# reactive attack, OLLA on:
+# 4. reactive attack, OLLA on:
 ./ns3 run "mcs-downgrade --reactive=true --useOlla=true --mcsThreshold=10 --simTime=2.0"
 ```
 

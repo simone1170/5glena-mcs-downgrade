@@ -4,6 +4,32 @@ Copyright (c) 2023 Centre Tecnologic de Telecomunicacions de Catalunya (CTTC)
 SPDX-License-Identifier: GPL-2.0-only
 -->
 
+<!-- FORK NOTE - added for the MCS-downgrade reactive-jamming artifact -->
+
+> **Fork notice.** This is a fork of the official 5G-LENA `nr` module
+> ([gitlab.com/cttc-lena/nr](https://gitlab.com/cttc-lena/nr)) at release **v4.2**,
+> created as the reproducibility artifact for the paper *"An MCS-Downgrade Reactive
+> Jamming Attack on Industrial 5G Link Adaptation."* It is distributed under the same
+> **GNU GPLv2** as the upstream module and ns-3.
+>
+> **What this fork adds on top of nr v4.2:**
+> - A downlink **outer-loop link adaptation (OLLA)** port to the MAC scheduler
+>   (`model/nr-mac-scheduler-ns3.{h,cc}`, `model/nr-mac-scheduler-cqi-management.cc`,
+>   `model/nr-mac-scheduler-ue-info.h`). Attributes: `UseOlla`, `OllaStep`,
+>   `OllaTargetBler`, `OllaMaxOffset`, `OllaMinOffset`.
+> - The **MCS-downgrade reactive-jamming scenario** plus run/analysis scripts, data,
+>   figures, and the paper source under [`scenarios/`](scenarios/) - see
+>   [`scenarios/README.md`](scenarios/README.md) for build & full reproduction.
+>
+> The exact changes against upstream are auditable with `git diff v4.2..HEAD`.
+>
+> **Built on:** [ns-3](https://www.nsnam.org) (nsnam, GPLv2) and
+> [5G-LENA](https://5g-lena.cttc.es) (CTTC, GPLv2). All upstream copyright and license
+> headers are retained. The original upstream README follows below.
+
+---
+
+
 [![REUSE status](https://api.reuse.software/badge/gitlab.com/cttc-lena/nr)](https://api.reuse.software/info/gitlab.com/cttc-lena/nr)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.7780747.svg)](https://doi.org/10.5281/zenodo.7780747)
 

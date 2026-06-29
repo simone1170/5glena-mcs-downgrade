@@ -340,7 +340,12 @@ acts through OLLA on a 5G link.
 
 \subsubsection{Simulator}
 We use ns-3.47, an open-source discrete-event network simulator, with its NR
-module, called 5G-LENA, version~4.2~\cite{patriciello2019e2e}. Its physical-layer
+module, called 5G-LENA, version~4.2~\cite{patriciello2019e2e}.\footnote{Code and
+data availability: our OLLA port to the 5G-LENA scheduler, the attack scenario, the
+run and analysis scripts, and the raw data are public at
+\url{https://github.com/simone1170/5glena-mcs-downgrade} (branch \texttt{mcs-downgrade}).
+The build is stock ns-3.47 with this fork as the \texttt{nr} module; the exact changes
+against upstream are visible with \texttt{git diff v4.2..HEAD}.} Its physical-layer
 abstraction maps SINR to block error rate using exponential effective SINR mapping (EESM)
 curves calibrated against a
 link-level simulator~\cite{lagen2020abstraction}, so co-channel interference produces
@@ -910,7 +915,8 @@ channels, validate it in a shielded lab with software-defined radios (SDRs), and
 it to a higher-fidelity physical process.
 
 \section*{Acknowledgments}
-[Acknowledgments placeholder.]
+This work uses the open-source ns-3 simulator (nsnam) and its 5G-LENA NR module,
+developed by CTTC. [Funding and personal acknowledgments placeholder.]
 
 \begin{thebibliography}{10}
 \bibitem{patriciello2019e2e}
