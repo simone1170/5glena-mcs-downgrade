@@ -296,10 +296,13 @@ is running fast and is worth attacking: after the decode delay $\delta$ the jamm
 short interference pulse on the victim's resources, corrupting that high-MCS block. The
 block is received but fails its CRC, so the victim returns a \emph{genuine} NACK; OLLA
 reads the NACK and lowers the per-UE offset, and the effective MCS drops on its own. If
-$m_t$ is below $\theta$, the victim is already slow: the jammer stays silent, spending no
-on-air time, and the lowered MCS holds because OLLA only raises the offset slowly, on
-ACKs. The attacker never touches feedback directly; it only times pulses against
-blocks the network itself will then report as failures.
+$m_t$ is below $\theta$, the victim is already slow, so the jammer stays silent this slot
+and spends no on-air time. OLLA raises the offset only slowly, on ACKs, so the MCS drifts
+back up over many slots, and the jammer fires again once it re-crosses $\theta$. The
+attacker is therefore not idle once the link is trapped: it fires occasional pulses to
+hold the MCS down, which is why its on-air time is low but not zero. The attacker never
+touches feedback directly; it only times pulses against blocks the network itself will
+then report as failures.
 
 \begin{algorithm}[t]
 \caption{Reactive MCS-downgrade jammer}
@@ -312,8 +315,8 @@ blocks the network itself will then report as failures.
   \If{$m_t \ge \theta$} \Comment{victim is running fast}
     \State at time $t+\delta$: \textsc{EmitPulse}(victim resources)
     \State \Comment{corrupt block $\to$ genuine NACK $\to$ OLLA lowers offset $\to$ MCS $\downarrow$}
-  \Else \Comment{victim already trapped low}
-    \State \textsc{StaySilent}() \Comment{no on-air time; low MCS holds}
+  \Else \Comment{victim slow; fire again when it recovers past $\theta$}
+    \State \textsc{StaySilent}() \Comment{no on-air time this slot}
   \EndIf
 \EndFor
 \end{algorithmic}
