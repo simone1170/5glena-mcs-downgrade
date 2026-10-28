@@ -1,199 +1,164 @@
-# MCS-downgrade reactive jamming on industrial 5G (5G-LENA)
+# SLADE: a Stealthy Link-Adaptation Downgrade Exploit on industrial 5G
 
-Reproduction of the **MCS-downgrade reactive jamming** attack in
-ns-3 **5G-LENA** (nr). The downgrade emerges from the real interference ->
-graded SINR (EESM) -> HARQ NACK -> outer-loop link adaptation (OLLA) chain,
-with **no injected effect**.
+Reproducibility artifact for the paper **"SLADE: A Stealthy Link-Adaptation Downgrade
+Exploit on Industrial 5G"** (S. Caldato, E. Trettenero, A. Brighente, University of Padova).
+
+An attacker that can read the victim's per-slot MCS from the unprotected DCI fires a short
+interference pulse only while the victim is on a high MCS. The corrupted block is still
+received, fails its CRC and returns a genuine HARQ NACK; outer-loop link adaptation (OLLA)
+reads the NACK and lowers the MCS. Repeating this keeps the link trapped at a low MCS, so
+URLLC control messages miss their deadlines. In this repository the downgrade emerges from
+the simulator's own chain (co-channel interference → graded SINR (EESM) → HARQ NACK → OLLA),
+with no injected corruption or forged feedback.
 
 ## What is in this branch
-- **OLLA port** (the nr module commit): per-UE DL outer-loop link adaptation
-  in `NrMacSchedulerNs3` / `NrMacSchedulerCQIManagement`. Attributes:
-  `UseOlla`, `OllaStep`, `OllaTargetBler`, `OllaMaxOffset`, `OllaMinOffset`.
-- **`scenarios/mcs-downgrade.cc`**: victim cell + co-channel interferer cell
-  (served UE co-located with the victim). Constant broadband interferer
-  (`--jammerTxPowerDbm`) or a reactive MCS-aware jammer that reads the victim's
-  commanded DL MCS via the `RxPacketTraceUe` trace and toggles the interferer
-  Tx power around `--mcsThreshold` (low-duty selective jamming). URLLC victim
-  mode + FlowMonitor deadline-miss metrics.
-- **`scenarios/scripts/`**: build, sweep, and plotting helpers (WSL/bash).
-- **`scenarios/figures/`**: headline commanded-MCS-over-time and the
-  cost-vs-damage trade-off figures.
 
-## Build & run
-Tested on **ns-3.47** with this fork (which already contains the OLLA port) as the
-`nr` module in `contrib/nr`. From an empty directory:
-```
-# 1. stock ns-3.47
+| Path | Content |
+|---|---|
+| `model/nr-mac-scheduler-ns3.{h,cc}`, `model/nr-mac-scheduler-cqi-management.cc`, `model/nr-mac-scheduler-ue-info.h` | The **DL OLLA port** (5G-LENA selects MCS from CQI only). Down-step `s` on each fresh NACK, up-step `s·B/(1−B)` on each ACK, offset re-applied at every DL slot. Scheduler attributes: `UseOlla`, `OllaStep`, `OllaTargetBler`, `OllaMaxOffset`, `OllaMinOffset`. |
+| `scenarios/mcs-downgrade.cc` | The attack scenario: victim cell + co-channel interferer cell whose UE is co-located with the victim; constant (broadband) or reactive MCS-aware jammer; saturating or periodic URLLC traffic; bottle-filling plant. |
+| `scenarios/scripts/` | Run, merge, and plot scripts (bash + Python). |
+| `scenarios/paper/` | Paper LaTeX source, **raw per-seed CSVs** behind every table and figure, and the figures as used in the paper (`paper-figs/`). |
+| `scenarios/paper/LINKLEVEL-CROSSCHECK.md`, `scripts/linklevel-crosscheck.py` | Design and script for the planned link-level (Sionna) check of the per-pulse assumption (paper §VII, not part of the results). |
+| `scenarios/figures/` | Figures from earlier campaigns (legacy, see below). |
+
+The exact changes against upstream 5G-LENA are auditable with `git diff v4.2..HEAD`.
+
+## Build
+
+Tested on **ns-3.47** with this fork as the `nr` module (5G-LENA v4.2 + the OLLA port):
+
+```bash
 git clone --branch ns-3.47 https://gitlab.com/nsnam/ns-3-dev.git
-# 2. this fork (OLLA port + scenario) as the nr module
 git clone --branch mcs-downgrade https://github.com/simone1170/5glena-mcs-downgrade.git ns-3-dev/contrib/nr
-# 3. build the scenario
 cd ns-3-dev
 cp contrib/nr/scenarios/mcs-downgrade.cc scratch/
 ./ns3 configure --enable-examples -d optimized && ./ns3 build mcs-downgrade
-# 4. reactive attack, OLLA on:
-./ns3 run "mcs-downgrade --reactive=true --useOlla=true --mcsThreshold=10 --simTime=2.0"
 ```
 
-## Headline results
-- Reactive (OLLA on, thr 10): victim commanded MCS trapped ~8-9, jammer duty
-  ~0.18-0.21; with OLLA off no downgrade and duty ~0.57-0.63 (OLLA-dependent).
-- URLLC trade-off: reactive reaches ~100% deadline failure at duty ~0.21 vs a
-  constant broadband jammer needing duty 1.0 -> ~5x less on-air time.
+Note: `scripts/setup-5glena.sh` clones *upstream* nr v4.2 (without the OLLA port); use the
+commands above instead.
 
-## Upgrades (realistic sensing, plant, confidence intervals)
+Example: the paper's realistic reactive attacker (R3 configuration, one seed):
 
-New scenario flags: `--reactionDelayMs`, `--plant`, `--plantInflow`, `--channelCondition`.
+```bash
+./ns3 run "mcs-downgrade --reactive=true --useOlla=true --mcsThreshold=10 --reactionDelayMs=0.5 \
+  --urllcPacketSize=128 --urllcPeriodMs=1.0 --deadlineMs=2.0 --plant=true \
+  --channelCondition=LOS --simTime=2.0 --RngRun=1"
+```
 
-- **Realistic-sensing jammer** (`--reactionDelayMs`): the attacker reads the scheduled
-  MCS (PDCCH/DCI is not integrity-protected) but stale by the sense+react latency.
-  Sweeping 0-2 ms leaves duty ~0.2 and ~100% URLLC failure unchanged -> the attack is
-  robust to realistic sensing latency (OLLA recovery ~tens of ms >> reaction lag).
-- **Closed-loop plant** (`--plant`): a bottle-filling `PlantActuator` on the victim UE.
-  Stale control commands (deadline misses) leave the inlet valve open -> tank fills ->
-  spill (safety event). Baseline 0 spills; reactive (OLLA on) ~53 spills/2 s at duty ~0.21 (LOS, 8-seed mean; the earlier single-run "108" is reconciled below).
-- **Confidence intervals** (`scripts/run-ci.sh`, 5 RNG seeds): under the random 3GPP
-  LOS/NLOS condition the attack is bimodal (fails when the jammer link draws an NLOS deep
-  fade, where even broadband fails). Conditioning on LOS isolates the mechanism:
+The run prints a `reactive jammer: ... dutyCycle=` line (on-air time = duty × 100), a
+`METRICS tx= rx= late=` line (URLLC failure = (tx − (rx − late)) / tx), and a
+`PLANT ... spills=` line.
 
-  | scenario | duty | URLLC failed% | plant spills |
-  |---|---|---|---|
-  | baseline | 0 | 0.2 | 0 |
-  | broadband 40 dBm | 1.0 | 100 +/- 0 | 69 +/- 111 |
-  | reactive (OLLA on) | 0.255 +/- 0.080 | 99.9 | 53 +/- 22 |
-  | reactive (OLLA on, +1 ms) | 0.224 +/- 0.047 | 99.9 | 160 +/- 28 |
-  | reactive (OLLA off) | 0.611 +/- 0.020 | 99.9 | 169 +/- 2 |
+### Main scenario flags
 
-  Reactive (OLLA on) reaches 99.9% deadline failure at duty 0.255 vs broadband's 1.0
-  (~4x efficiency); OLLA gives ~2.4x efficiency. Figure: `figures/tradeoff-ci-5glena.png`.
+| Flag | Default | Paper value |
+|---|---|---|
+| `--useOlla`, `--ollaStep`, `--ollaTargetBler` | off, 0.1, 0.1 | on, s = 0.1, B = 0.1 (swept in R5) |
+| `--reactive` | false | true for the attack; false + `--jammerTxPowerDbm` for broadband |
+| `--mcsThreshold` | 10 | 10 (swept in R6) |
+| `--jammerHighPowerDbm` / `--jammerLowPowerDbm` | 50 / −50 | 50 / −50 (ON power swept in R4, R6) |
+| `--reactionDelayMs` | 0 (oracle) | 0.5 (realistic), swept 0–2 ms |
+| `--victimTxPowerDbm` | 30 | 30 (swept in R4) |
+| `--urllc`, `--urllcPacketSize`, `--urllcPeriodMs`, `--deadlineMs` | off, **1000 B**, 1 ms, 2 ms | on, **128 B**, 1 ms, 2 ms |
+| `--plant` | false | true for URLLC impact runs (`--plant` forces `--urllc=true`) |
+| `--channelCondition` | `Default` (random LOS/NLOS) | `LOS` for R3/R5, `Default` for R4/R6 |
+| `--RngRun` | 1 | seeds 1–10 (LOS), 1–100 (random channel) |
 
-## Delayed-feedback resonance (correction to the realistic-sensing note)
+The default packet size is 1000 B; all paper URLLC results pass `--urllcPacketSize=128`
+explicitly. A 1000 B payload saturates the failure metric (see "Legacy" below).
 
-An earlier note claimed a 1 ms sensing delay made the attack "more damaging" to the
-plant. A reaction-delay sweep (`scripts/run-delay-sweep.sh`, 5 delays x 8 seeds; finer
-`scripts/run-delay-fine.sh`, 12 delays x 5 seeds; LOS, plant on) shows that was an
-artifact of sampling only delay 0 and 1 ms. The real picture:
+## Paper result → script → data → figure
 
-- **The per-packet attack is delay-robust**: URLLC `failed%` ~= 99.9 and jammer
-  duty ~= 0.2 at *every* delay 0-3 ms.
-- **Plant damage is NON-MONOTONIC in delay** -- a delayed-feedback resonance in the
-  jammer<->OLLA<->HARQ closed loop:
+All CSVs below are committed in `scenarios/paper/`. Seed pools were built in two passes
+(initial seeds, then a top-up to 10) and merged by `analyze10.py`.
 
-  | delay (ms) | plant spills / 2 s | plant-stale fraction |
-  |---|---|---|
-  | 0.00 | 53 | 44% |
-  | 0.25-1.0 | ~160 | ~94% (high plateau) |
-  | 1.25-1.5 | ~44-53 | ~37% (trough, below idealized) |
-  | 1.75-3.0 | ~170 | ~98% (saturated) |
-
-- **Mechanism**: a spill needs ~10 contiguous stale control steps (a >=~10 ms delivery
-  gap), so spills measure loss *clustering*, not average failure -- which is why they
-  swing 37-98% while per-packet `failed%` stays pinned at ~99.9 (late packets arrive in
-  bursts that refresh the plant). At resonant delays the jammer keeps firing through the
-  victim's recovery windows, so stale steps become near-contiguous and the tank overflows.
-
-**Correct claim**: the idealized (delay-0) jammer sits at a *low* plant-damage operating
-point; an attacker that can tune its reaction delay (or that lands in a resonant band) can
-amplify physical-process damage ~3x at the same air-time cost. This is NOT "realistic
-sensing is strictly worse." Figure: `figures/delay-resonance-5glena.png`.
-
-## Spill-count reconciliation (the "108" vs "53" figures)
-
-An earlier note paired a single-run plant result -- "reactive (OLLA on) ~108 spills,
-~= SWICS's 110 plant events" -- with the CI campaign's 53 +/- 22. Those are not in
-conflict; they are different channel conditions, and the 108 is an unrepresentative
-single draw (`scripts/reconcile-spills.sh`):
-
-- The 108 is exactly the default `run-plant.sh` run: **Default** (probabilistic 3GPP
-  LOS/NLOS) channel at the **default seed** (RngRun=1).
-- Across Default seeds 1-8 the reactive-on spills are bimodal: **[108, 38, 29, 0, 19,
-  38, 38, 57]**, mean **41 +/- 27** -- i.e. 108 is the *worst* of the eight draws (seed 4
-  even hits 0 spills, where the jammer link geometry prevents trapping the MCS so duty
-  runs away to ~1.0).
-- Conditioning on **LOS** (8 seeds) gives **52.5 +/- 11.2** spills, tight and stable.
-
-**Corrected statement**: reactive jamming produces O(50) plant safety events / 2 s in the
-controlled LOS case (single-draw values range 0-108 over the random channel). This is the
-*same order* as SWICS's 110 events, but the precise 108~=110 match was a coincidence of an
-outlier seed and should not be cited as a quantitative correspondence.
-
-### Resonance is robust to the OLLA slot-cadence fix
-
-After moving OLLA offset application from CQI-report instants to every DL slot
-(commit "OLLA: apply offset at DL-scheduling cadence"), the delay sweep was
-re-run. The resonance is essentially unchanged (troughs still at delay ~0 and
-~1.25-1.5 ms; high plateau ~158-163; saturated bands 170+/-0). So the resonance
-is NOT an artifact of OLLA's CQI-cadence quantization -- it is a structural
-property of the reactive jammer<->HARQ<->plant loop. `figures/delay-resonance-5glena.png`
-is regenerated from the fixed-OLLA data.
-
-## Scope of the headline: LOS-conditioned mechanism + random-channel regime
-
-The ~4x efficiency headline (reactive reaches ~100% URLLC failure at duty ~0.25 vs
-broadband's 1.0) is reported under a **LOS-conditioned** channel. This is a deliberate
-mechanism-isolation choice, not cherry-picking: under the random 3GPP LOS/NLOS condition
-the *jammer->victim* link is itself a random draw, which degrades BOTH the reactive and
-the broadband attacker. LOS conditioning removes that shared lottery so the comparison
-reflects the link-adaptation mechanism, not channel luck.
-
-The random-channel behaviour is reported here as a **separate result**
-(`scripts/run-channel-regime.sh`, Default 3GPP condition, 12 seeds; the victim's own link
-is stable -- baseline failed% = 0.2 and 0 spills across all 12 seeds -- so the variation is
-entirely on the jammer->victim path):
-
-| outcome | reactive seeds | duty | URLLC failed% | plant spills |
+| Result (paper) | Run | Raw data (`scenarios/paper/`) | Analysis / plot | Output |
 |---|---|---|---|---|
-| attack **succeeds** | 10 / 12 | 0.18-0.56 | 99.9 | ~58 |
-| attack **fails** (jammer link NLOS) | 2 / 12 | 1.00 | 23.7 | 0 |
+| **R1** graded interference, Table I | `run-phase1-sweep.sh` | console only | `analyze-phase1.sh` | console |
+| **R2** OLLA check, Table II | `run-olla-validate.sh` | console only | — | console |
+| **R2** reactive downgrade, Table III, Fig. 3 | `run-reactive-5glena.sh` | console + `RxPacketTrace.txt` | `plot-reactive.py` | `commanded-mcs-5glena-reactive.png` |
+| **R3** reactive vs broadband, Table IV, Fig. 4 (LOS, 128 B, 10 seeds) | `campaign128.sh` (Study D, seeds 1–5) + `topup10.sh` §1 (seeds 6–10) | `studyD-R3-128.csv`, `studyD-R3-128-s6_10.csv` → **`studyD10-R3-128.csv`** | `analyze10.py`, `plot10.py` (Fig. 4 part) | `tradeoff-ci-5glena.png` |
+| **R4** cost vs victim SINR / jammer power, Fig. 5 (random channel, 100 seeds per point) | `sweep100.sh` | `studyG-sweep100-victimpow.csv`, `studyH-sweep100-jammerpow.csv` | `analyze_sweep.py`, `plot_sweep.py` | `sweep100-5glena.png` |
+| **R4** bimodality and broadband on the random channel (12 seeds) | `studyE-regime128.sh` | `studyE-regime-128.csv` | `analyze10.py` (R4 block), `plot_regime128.py` | console, `channel-regime-5glena.png` (not in the paper) |
+| **R5** OLLA tuning, Table V (saturating, LOS, 10 seeds) | `run-olla-robustness.sh` with `STUDY=A` (seeds 1–3) + `topup10.sh` §2 (seeds 4–10) | `studyA-olla-dependence.csv`, `studyA-tuning-s4_10.csv` → **`studyA10-olla-dependence.csv`** | `analyze10.py` | console |
+| **R5** delay resonance vs OLLA step, Table VI (LOS, 128 B, 10 seeds) | `payload-sweep.sh` (s = 0.10, seeds 1–3) + `campaign128.sh` Study C2 (s = 0.05/0.20, seeds 1–3) + `topup10.sh` §3 (seeds 4–10) | `studyC-payload128.csv`, `studyC2-resonance-128.csv`, `studyF-resonance-s4_10.csv` → **`studyF10-resonance-128.csv`** | `analyze10.py` | console |
+| **R5** resonance on the random channel, Fig. 7 right (100 seeds) | `studyK.sh` | `studyK-resonance-random100.csv` | `plot_resonance2.py` (both panels of Fig. 7) | `delay-resonance-5glena.png` |
+| **R6** power × threshold grid, Fig. 6 (random channel, 100 seeds per cell) | `grid100.sh` | `studyJ-grid100.csv` | `plot_frontier.py` | `tradeoff-frontier-5glena.png` |
 
-- The reactive attack is **bimodal**: it succeeds at low duty in 10/12 realizations and
-  collapses in 2/12, where the jammer link draws an NLOS fade so the jammer cannot trap the
-  victim's MCS -- its controller then fires continuously (duty -> 1.0) yet the victim is
-  spared (0 spills).
-- **Broadband is channel-dependent too**: mean URLLC failed% is only 76% (vs 100% under LOS)
-  and it causes plant spills in just 7/12 seeds. So NLOS draws hurt broadband as well --
-  confirming the LOS conditioning is a fair isolation rather than a thumb on the scale.
+`plot10.py` also writes a single-panel `delay-resonance-5glena.png`; the paper's two-panel
+Fig. 7 is the one from `plot_resonance2.py`, so run that one last.
 
-Figure: `figures/channel-regime-5glena.png`. Practical reading: against a fixed industrial
-victim with a line-of-sight-ish interferer geometry the reactive attack dominates; a
-defender's main channel-level mitigation is denying the attacker an LOS path to the victim.
+### Headline numbers (recomputed from the committed CSVs)
 
-## Reproducing the experiments
+R3, LOS, 128 B URLLC, mean ± 95% CI over 10 seeds:
 
-### Setup
-1. Build ns-3.47 with this nr branch in `contrib/nr` (the OLLA port is part of
-   this branch, so no extra patching is needed). `scripts/setup-5glena.sh` shows
-   the exact clone/checkout/build steps used.
-2. Copy the scenario into `scratch/` and build it:
-   ```
-   cp contrib/nr/scenarios/mcs-downgrade.cc scratch/
-   ./ns3 configure --enable-examples -d optimized && ./ns3 build mcs-downgrade
-   ```
-3. The `plot-*.py` scripts need Python 3 with `matplotlib`.
+| Scenario | On-air % | URLLC failed % |
+|---|---|---|
+| baseline | 0 | 0.2 |
+| broadband 40 dBm | 100 | 21.6 ± 3.1 |
+| broadband 50 dBm | 100 | 100 ± 0 |
+| reactive, OLLA on, δ = 0 (oracle) | 26.8 ± 5.0 | 45.4 ± 6.4 |
+| reactive, OLLA on, δ = 0.5 ms | **20.0 ± 0.7** | **98.4 ± 1.0** |
+| reactive, OLLA on, δ = 1.0 ms | 23.2 ± 2.5 | 98.7 ± 1.6 |
+| reactive, OLLA off, δ = 0.5 ms | 86.4 ± 4.0 | 99.9 |
 
-### Script -> result mapping
-Each result has a runner (`run-*.sh`, produces the raw data / console lines) and
-most have a plotter (`plot-*.py` or `make-*-fig.sh`, produces the figure).
+- The realistic reactive attacker matches the 50 dBm broadband jammer at about one fifth of
+  the on-air time; OLLA makes it about 4.3× cheaper (86.4 / 20.0).
+- R5: across all nine (s, B) tunings the victim is trapped at MCS 8.1–9.6 (OLLA off: 15.1)
+  with on-air time 14–42% (OLLA off: 54%).
+- R5: plant faults and per-packet failure are non-monotonic in the reaction delay (low at
+  0 and 1.5 ms, high at 0.5–1.0 and 2.0 ms) for every OLLA step and on both channels.
+- R4: on the random channel the attack is bimodal (succeeds on 10/12 seeds); broadband
+  50 dBm and reactive both average about 80% failure there.
 
-| Result | Run | Plot / analyze | Output |
-|---|---|---|---|
-| R1 graded interference (paper Table I) | `run-phase1-sweep.sh` | `analyze-phase1.sh` | console table |
-| R2 OLLA check (paper Table II) | `run-olla-validate.sh` | -- | console table |
-| R2 reactive downgrade (paper Table III, Fig.) | `run-reactive-5glena.sh` | `make-reactive-fig.sh` (`plot-reactive.py`) | `commanded-mcs-5glena-reactive.png` |
-| R3 efficiency trade-off (paper Table IV, Fig.) | `run-ci.sh` | `make-ci-fig.sh` (`plot-ci.py`) | `tradeoff-ci-5glena.png` |
-| Phase-3 trade-off (alt. figure) | `run-phase3.sh` | `make-phase3-fig.sh` (`plot-phase3.py`) | `tradeoff-5glena-phase3.png` |
-| Realistic-sensing robustness | `run-sensing.sh` | -- | console |
-| Plant spills (single runs) | `run-plant.sh` | -- | console |
-| Delayed-feedback resonance (Fig.) | `run-delay-fine.sh` (coarse: `run-delay-sweep.sh`) | `plot-delay-fine.py` (`analyze-delay.py`) | `delay-resonance-5glena.png` |
-| Channel-condition regime (Fig.) | `run-channel-regime.sh` | `plot-regime.py` | `channel-regime-5glena.png` |
-| Spill reconciliation (108 vs 53) | `reconcile-spills.sh` | -- | console |
+## Re-deriving the numbers and figures
 
-Helpers: `inspect-rxtrace.sh` (inspect the per-block trace columns) and
-`dump-phase3.sh` (dump a phase-3 run).
+The analysis and plot scripts read and write fixed paths from the authors' WSL setup
+(`WIN=/mnt/c/Users/simo1/Desktop/charlie`, `FIGS=$WIN/paper-figs`, `NS3=/home/simo1/...`).
+To regenerate tables and figures from the committed data without re-running ns-3:
 
-### Portability note
-The scripts were written for the author's WSL setup. They hard-code paths such as
-`$HOME/projects/5glena/ns-3-dev` for the build tree and write raw data under
-`$HOME/projects/5glena/<campaign>/`. The `plot-*.py` scripts write the figures to a
-hard-coded Windows path (`/mnt/c/Users/.../paper-figs/`). On another machine, edit
-the `NS3`, `BASE`, and `OUT` variables at the top of each script before running.
+```bash
+cd scenarios/paper
+mkdir -p /tmp/slade
+for s in analyze10 analyze_sweep plot10 plot_sweep plot_frontier plot_resonance2; do
+  sed 's|/mnt/c/Users/simo1/Desktop/charlie|.|' ../scripts/$s.py > /tmp/slade/$s.py
+done
+python3 /tmp/slade/analyze10.py      # prints Tables IV, V, VI and the R4 summary
+python3 /tmp/slade/analyze_sweep.py  # prints the Fig. 5 points
+for s in plot10 plot_sweep plot_frontier plot_resonance2; do python3 /tmp/slade/$s.py; done
+# figures are written to paper-figs/
+```
+
+Requirements: Python 3 with `pandas`, `numpy`, `matplotlib`. `analyze10.py` rewrites the
+merged `*10-*.csv` files from their parts; with the committed data they come out identical.
+
+To re-run the simulations, edit `NS3`, `BASE` and `WIN`/`WINOUT` at the top of each run
+script. The 100-seed campaigns (`sweep100.sh`, `grid100.sh`, `studyK.sh`) call the
+optimized binary directly and run 6 jobs in parallel (`xargs -P 6`).
+
+## Legacy scripts and figures
+
+These come from earlier campaigns and are kept for traceability; their numbers are
+**not** the paper's and should not be cited:
+
+- `run-phase3.sh`, `plot-phase3.py`, `dump-phase3.sh`: first URLLC trade-off with a 1000 B payload.
+- `run-ci.sh`, `plot-ci.py`, `make-ci-fig.sh`: 5-seed CI campaign at the default 1000 B
+  payload. At that payload the failure metric saturates (≈ 100% even for 40 dBm broadband),
+  which is why the paper uses 128 B.
+- `run-sensing.sh`, `run-delay-sweep.sh`, `run-delay-fine.sh`, `analyze-delay.py`,
+  `plot-delay-fine.py`, `run-plant.sh`, `reconcile-spills.sh`: 1000 B delay and plant
+  studies; per-packet failure was pinned at ≈ 99.9% there, so only the plant fault count
+  showed the resonance.
+- `run-channel-regime.sh`, `plot-regime.py`: 1000 B random-channel study.
+- `run-broadband50.sh` → `paper/bb50-matched-power.csv`; `run-olla-robustness.sh` with
+  `STUDY=B` → `paper/studyB-resonance.csv`: both at 1000 B, superseded by Study D and Study F.
+- `plot128.py`: 5-seed version of Figs. 4 and 7, superseded by `plot10.py` / `plot_resonance2.py`.
+- `make-*-fig.sh`, `patch-plots-onair.py`: WSL helpers for the above.
+- `scenarios/figures/`: figures from these legacy campaigns. The paper's figures are in
+  `scenarios/paper/paper-figs/`.
+
+## License
+
+GNU GPLv2, as upstream 5G-LENA and ns-3. Upstream copyright and license headers are retained.
